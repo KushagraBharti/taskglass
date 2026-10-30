@@ -12,7 +12,8 @@ if [ ! -f .build/Taskglass.icns ] || [ scripts/Icon.swift -nt .build/Taskglass.i
     iconutil -c icns .build/Taskglass.iconset -o .build/Taskglass.icns
 fi
 cp .build/Taskglass.icns "$APP/Contents/Resources/Taskglass.icns"
-cp .build/release/Taskglass "$APP/Contents/MacOS/Taskglass"
+cp .build/release/Taskglass "$APP/Contents/MacOS/Taskglass.new"
+mv -f "$APP/Contents/MacOS/Taskglass.new" "$APP/Contents/MacOS/Taskglass"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -36,7 +36,7 @@ actor Sampler {
     private var time: TimeInterval?
     private var processes: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, name: String, path: String?, shortName: String, ioValid: Bool)] = [:]
     func reset() { previous = nil; time = nil; processes.removeAll(keepingCapacity: true) }
-    func read() -> Snapshot {
+    func read(includeProcesses: Bool = true) -> Snapshot {
         let now = ProcessInfo.processInfo.systemUptime
         let raw = tg_system()
         let elapsed = time.map { now - $0 } ?? 0
@@ -74,15 +74,21 @@ actor Sampler {
                 }
             }
         }
+        if !includeProcesses {
+            processes.removeAll(keepingCapacity: true)
+            previous = raw; time = now
+            return result
+        }
         var pointer: UnsafeMutablePointer<TGProcess>?
         let count = tg_processes(&pointer)
         var next: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, name: String, path: String?, shortName: String, ioValid: Bool)] = [:]
+        next.reserveCapacity(Int(count))
         if let pointer {
             defer { tg_free(pointer) }
             result.processes.reserveCapacity(Int(count))
             for index in 0..<Int(count) {
                 var p = pointer[index]
-                let shortName = withUnsafePointer(to: &p.name) { $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) } }
+                let shortName = withUnsafePointer(to: &p.name) { $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) } }
                 let old = processes[p.pid]
                 let path: String?
                 let name: String

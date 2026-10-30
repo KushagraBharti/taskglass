@@ -29,3 +29,18 @@ These are follow-up items, not advertised capabilities. GPU or sensor collection
 ## Repository hygiene
 
 The project has its own Git repository inside `taskglass/`. No files from the parent workspace belong to it. Generated screenshots and build output are ignored. Timing reports in `measurements/` contain only aggregate resource numbers and can be committed. Nothing has been pushed to GitHub.
+
+## Native utility refinement
+
+The second design pass removes the dashboard sidebar and tinted metric cards. Navigation, filtering, search, pause, and the optional inspector use native macOS controls. The primary process view keeps a compact CPU/memory/network summary beneath the table. Extra resource columns are optional. Performance uses a single system accent color, plain section grouping and aligned data instead of card backgrounds.
+
+Design references:
+
+- [Apple materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), which distinguishes the controls/navigation layer from content.
+- [Build an AppKit app with the new design](https://developer.apple.com/videos/play/wwdc2025/310/), particularly native toolbar behavior.
+
+Table updates now write changed text into existing visible cells instead of reloading row views. Process enumeration uses a smaller C record and reserves the next counter dictionary before filling it. The Performance view avoids process enumeration entirely. Sampling restarts immediately when the selected view or refresh interval changes. UI, monitoring, sampling, table integration and graph drawing are in separate source files.
+
+For appearance QA, launch the app with `open dist/Taskglass.app --args --preview-light`. This sets only the running app's appearance and does not change macOS settings. Relaunch without the argument to follow the system appearance again. The resource strip omits its mini graphs when the content pane narrows for the inspector.
+
+The Mach sampler reuses one host send right initialized with `pthread_once`. Build packaging replaces the executable atomically, so rebuilding does not truncate the executable used by a running app.

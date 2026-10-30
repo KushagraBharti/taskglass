@@ -8,15 +8,21 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <pthread.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <net/if_dl.h>
 #include <net/route.h>
+// Reuse a single host send right for the lifetime of the process.
+static host_t tg_host_port;
+static pthread_once_t tg_host_once = PTHREAD_ONCE_INIT;
+static void tg_init_host(void) { tg_host_port = mach_host_self(); }
 TGSystem tg_system(void) {
+ pthread_once(&tg_host_once, tg_init_host);
  TGSystem s = {0}; size_t size=sizeof(s.total);
  sysctlbyname("hw.memsize", &s.total, &size, NULL, 0);
  vm_statistics64_data_t v={0}; mach_msg_type_number_t n=HOST_VM_INFO64_COUNT;
- if (host_statistics64(mach_host_self(),HOST_VM_INFO64,(host_info64_t)&v,&n)==KERN_SUCCESS) {
+ if (host_statistics64(tg_host_port,HOST_VM_INFO64,(host_info64_t)&v,&n)==KERN_SUCCESS) {
   uint64_t p=(uint64_t)getpagesize();
   s.wired=(uint64_t)v.wire_count*p; s.compressed=(uint64_t)v.compressor_page_count*p;
   uint64_t app=v.internal_page_count>v.purgeable_count?v.internal_page_count-v.purgeable_count:0;
@@ -24,13 +30,13 @@ TGSystem tg_system(void) {
   s.cached=((uint64_t)v.external_page_count+v.purgeable_count)*p; s.valid=1;
  }
  host_cpu_load_info_data_t c={0}; n=HOST_CPU_LOAD_INFO_COUNT;
- if(host_statistics(mach_host_self(),HOST_CPU_LOAD_INFO,(host_info_t)&c,&n)==KERN_SUCCESS) {
+ if(host_statistics(tg_host_port,HOST_CPU_LOAD_INFO,(host_info_t)&c,&n)==KERN_SUCCESS) {
   s.cpu_valid=1;
   s.cpu_user=(uint64_t)c.cpu_ticks[CPU_STATE_USER]+c.cpu_ticks[CPU_STATE_NICE];
   s.cpu_system=c.cpu_ticks[CPU_STATE_SYSTEM]; s.cpu_idle=c.cpu_ticks[CPU_STATE_IDLE];
  }
  processor_info_array_t ticks=NULL; mach_msg_type_number_t tick_count=0; natural_t cores=0;
- if(host_processor_info(mach_host_self(),PROCESSOR_CPU_LOAD_INFO,&cores,&ticks,&tick_count)==KERN_SUCCESS) {
+ if(host_processor_info(tg_host_port,PROCESSOR_CPU_LOAD_INFO,&cores,&ticks,&tick_count)==KERN_SUCCESS) {
   s.cores=cores>128?128:cores;
   for(int i=0;i<s.cores;i++) {
    uint64_t user=(uint32_t)ticks[i*CPU_STATE_MAX+CPU_STATE_USER], nice=(uint32_t)ticks[i*CPU_STATE_MAX+CPU_STATE_NICE];

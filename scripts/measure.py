@@ -36,5 +36,7 @@ print(json.dumps({"duration_seconds": round(wall, 2),
     "cpu_percent_one_core": round(((last.user + last.system) - (first.user + first.system))/1e9/wall*100, 3),
     "footprint_mib_median": round(statistics.median(s.footprint for s in samples)/2**20, 2),
     "footprint_mib_peak": round(max(s.footprint for s in samples)/2**20, 2),
+    "footprint_mib_first": round(first.footprint/2**20, 2),
+    "footprint_mib_last": round(last.footprint/2**20, 2),
     "rss_mib_median": round(statistics.median(s.resident for s in samples)/2**20, 2),
     "interrupt_wakeups_per_second": round((last.interrupt_wakeups-first.interrupt_wakeups)/wall, 2)}, indent=2))

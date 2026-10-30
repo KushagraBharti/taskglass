@@ -16,3 +16,17 @@ The latest direct sampler test averaged 1.38 ms per read over 50 reads. It reads
 The JSON files are raw output from `scripts/measure.py`. The final comparison covers the process view while visible and idle. Interaction, filtering, the Performance view, accessibility inspection, or changing the window size can increase costs. No claim of being the smallest possible macOS monitor has been verified.
 
 A `leaks` diagnostic on an earlier build reported small framework/XPC cycles, but restricted process access prevented a complete analysis. It does not establish that the app is leak-free. Diagnostic files stay in the ignored build folder.
+
+## Native utility refinement
+
+A further pass removes the persistent dashboard sidebar, uses native toolbar navigation and Cocoa search, and updates existing visible table cells in place. Primary columns are visible by default; secondary columns are optional. The C process record is smaller, its next-counter dictionary reserves capacity, and Performance mode reads only system counters.
+
+| Mode | Duration | CPU, one core | Median footprint | Median RSS |
+| --- | ---: | ---: | ---: | ---: |
+| Processes, fresh launch | 90 s | 0.052% | 50.41 MiB | 118.80 MiB |
+| Performance, after UI interaction | 30 s | 0.038% | 84.69 MiB | 181.92 MiB |
+| Paused, after UI interaction | 15 s | 0.001% | 82.53 MiB | 182.22 MiB |
+
+The 90-second process run started at 50.39 MiB physical footprint and ended at 50.86 MiB, with a 53.47 MiB peak. It included approximately 700 accessible processes, two-second sampling, and the existing window size restored by macOS. The Performance and paused runs followed accessibility inspection, searching, opening the inspector and toggling columns in the same app session. Their memory numbers include those warm caches, so they do not isolate the cost of a view. No repeatability or universal minimum claim is made. JSON files are retained beside this report.
+
+The test runner now also checks consistent ordering for tied values and case variants, and verifies that returning from system-only mode creates a fresh process CPU baseline. The full process sampler averaged 1.35–2.07 ms per read across the final test runs, with approximately 700 accessible processes.

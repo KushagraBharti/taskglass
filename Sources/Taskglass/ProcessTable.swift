@@ -6,14 +6,14 @@ struct ProcessTable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(monitor) }
     func makeNSView(context: Context) -> NSScrollView {
         let table = NSTableView()
-        for (key, title, width) in [("name", "Process", 260.0), ("pid", "PID", 65), ("cpu", "CPU", 85), ("memory", "Memory", 100), ("resident", "Resident", 100), ("threads", "Threads", 70), ("read", "Disk read/s", 95), ("write", "Disk write/s", 95), ("uid", "User ID", 70)] {
+        for (key, title, width) in [("name", "Process name", 330.0), ("pid", "PID", 65), ("cpu", "CPU", 85), ("memory", "Memory", 100), ("resident", "Resident", 100), ("threads", "Threads", 70), ("read", "Disk read/s", 95), ("write", "Disk write/s", 95), ("uid", "User ID", 70)] {
             let c = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(key)); c.title = title; c.width = width; c.minWidth = key == "name" ? 120 : 55
             c.sortDescriptorPrototype = NSSortDescriptor(key: key, ascending: key == "name")
             c.headerCell.alignment = key == "name" ? .left : .right
             table.addTableColumn(c)
         }
         table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
-        table.style = .fullWidth; table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true
+        table.style = .fullWidth; table.rowHeight = 28; table.usesAlternatingRowBackgroundColors = true
         table.allowsMultipleSelection = false; table.allowsEmptySelection = true
         table.delegate = context.coordinator; table.dataSource = context.coordinator
         table.sortDescriptors = [NSSortDescriptor(key: "memory", ascending: false)]
@@ -24,15 +24,35 @@ struct ProcessTable: NSViewRepresentable {
     }
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         let c = context.coordinator
+        if let table = c.table {
+            for column in table.tableColumns {
+                switch column.identifier.rawValue {
+                case "resident": column.isHidden = !monitor.showResident
+                case "read", "write": column.isHidden = !monitor.showDisk
+                case "uid": column.isHidden = !monitor.showUser
+                default: break
+                }
+            }
+        }
         guard c.rows != monitor.rows else { return }
         c.updating = true
         let countChanged = c.rows.count != monitor.rows.count
         c.rows = monitor.rows
         if let table = c.table {
             if countChanged { table.noteNumberOfRowsChanged() }
+            // Update existing visible cells in place. Avoid row/view and accessibility churn.
             let range = table.rows(in: table.visibleRect)
             if range.location != NSNotFound && range.length > 0 {
-                table.reloadData(forRowIndexes: IndexSet(integersIn: range.location..<min(c.rows.count, range.location + range.length)), columnIndexes: IndexSet(integersIn: 0..<table.numberOfColumns))
+                let end = min(c.rows.count, range.location + range.length)
+                if range.location < end {
+                    for row in range.location..<end {
+                        for (index, column) in table.tableColumns.enumerated() where !column.isHidden {
+                            if let cell = table.view(atColumn: index, row: row, makeIfNecessary: false) as? NSTableCellView {
+                                c.configure(cell, key: column.identifier.rawValue, process: c.rows[row])
+                            }
+                        }
+                    }
+                }
             }
         }
         if let selected = monitor.selected, let index = c.rows.firstIndex(where: { $0.id == selected }) {
@@ -50,25 +70,31 @@ struct ProcessTable: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {
             guard row < rows.count, let key = column?.identifier else { return nil }
             let cell = tableView.makeView(withIdentifier: key, owner: self) as? NSTableCellView ?? makeCell(key)
-            let p = rows[row]
-            switch key.rawValue {
-            case "name": cell.textField?.stringValue = p.name
-            case "pid": cell.textField?.stringValue = String(p.id)
-            case "cpu": cell.textField?.stringValue = percent(p.cpu)
-            case "memory": cell.textField?.stringValue = p.footprint.map(bytes) ?? "—"
-            case "resident": cell.textField?.stringValue = bytes(p.resident)
-            case "threads": cell.textField?.stringValue = String(p.threads)
-            case "read": cell.textField?.stringValue = rate(p.readRate)
-            case "write": cell.textField?.stringValue = rate(p.writeRate)
-            default: cell.textField?.stringValue = String(p.uid)
-            }
-            cell.toolTip = key.rawValue == "memory" ? "Physical footprint. A dash means macOS denied access." : cell.textField?.stringValue
+            configure(cell, key: key.rawValue, process: rows[row])
             return cell
+        }
+        func configure(_ cell: NSTableCellView, key: String, process p: ProcessRow) {
+            let value: String
+            switch key {
+            case "name": value = p.name
+            case "pid": value = String(p.id)
+            case "cpu": value = percent(p.cpu)
+            case "memory": value = p.footprint.map(bytes) ?? "—"
+            case "resident": value = bytes(p.resident)
+            case "threads": value = String(p.threads)
+            case "read": value = rate(p.readRate)
+            case "write": value = rate(p.writeRate)
+            default: value = String(p.uid)
+            }
+            if cell.textField?.stringValue != value { cell.textField?.stringValue = value }
+            let quiet = key == "pid" || key == "uid" || (key == "cpu" && (p.cpu ?? 0) < 0.05)
+            cell.textField?.textColor = quiet ? .secondaryLabelColor : .labelColor
+            cell.toolTip = key == "memory" ? "Physical footprint. A dash means macOS denied access." : value
         }
         func makeCell(_ key: NSUserInterfaceItemIdentifier) -> NSTableCellView {
             let cell = NSTableCellView(); cell.identifier = key
             let text = NSTextField(labelWithString: ""); text.translatesAutoresizingMaskIntoConstraints = false
-            text.font = key.rawValue == "name" ? .systemFont(ofSize: 12) : .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            text.font = key.rawValue == "name" ? .systemFont(ofSize: 13) : .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             text.alignment = key.rawValue == "name" ? .left : .right; text.lineBreakMode = .byTruncatingMiddle
             cell.addSubview(text); cell.textField = text
             NSLayoutConstraint.activate([text.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 7), text.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -7), text.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
@@ -82,6 +108,6 @@ struct ProcessTable: NSViewRepresentable {
             guard let descriptor = tableView.sortDescriptors.first else { return }
             monitor.sort = descriptor.key ?? "memory"; monitor.ascending = descriptor.ascending; monitor.arrange()
         }
-        @objc func inspect() { monitor.inspect = true }
+        @objc func inspect() { monitor.showingInspector = true }
     }
 }

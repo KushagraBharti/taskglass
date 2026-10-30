@@ -16,12 +16,12 @@ The release app is unsigned. Signing, notarization, a public license choice, and
 ## Current features
 
 - Native, reusable process table with sorting, search, app and user filters, selection, and keyboard navigation.
-- Sampled CPU, physical memory footprint, resident memory, thread count, physical disk read/write rates, PID, and user ID. Extra columns are available by scrolling horizontally.
-- Process inspector with parent PID, executable path, reveal in Finder, quit and force quit. Process signals are restricted to your user, exclude Taskglass itself, and verify the process start identity. Applications receive native quit requests. Actions require confirmation in the app.
+- Sampled CPU, physical memory footprint, resident memory, thread count, physical disk read/write rates, PID, and user ID. Resident memory, disk activity and user ID columns can be enabled in the filter menu.
+- Optional native process inspector with parent PID, executable path, reveal in Finder, quit and force quit. Process signals are restricted to your user, exclude Taskglass itself, and verify the process start identity. Applications receive native quit requests. Actions require confirmation in the app.
 - System CPU, per-core utilization, memory pressure, wired and compressed memory, cached files, swap use, physical interface network rates, thermal state, and uptime.
-- Performance view with larger graphs. Up to 90 samples stay in memory.
+- Performance view with larger graphs and no process enumeration overhead. Up to 90 samples stay in memory.
 - Refresh every 1, 2, or 5 seconds. Pause manually or automatically while hidden or minimized. Closing the window cancels sampling.
-- Native system appearance, Liquid Glass search and toolbar controls, and native accessibility support for the process table.
+- Native system appearance, toolbar navigation, Cocoa search, and native accessibility support for the process table.
 
 ## Measurement definitions
 
