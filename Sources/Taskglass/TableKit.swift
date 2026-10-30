@@ -87,29 +87,46 @@ import UniformTypeIdentifiers
     static let diskHelp = "Physical disk I/O. Reads served from the file cache are not included."
 }
 
+/// Cache raw readings at the visible cell, before Foundation number formatting.
+/// Raw values remain unchanged; equality only skips repeating the same text work.
+enum CellMeasurement: Equatable {
+    case percentage(Double?), byteCount(UInt64?), byteRate(Double?), gpuTime(Double?)
+    var text: String {
+        switch self {
+        case .percentage(let value): percent(value)
+        case .byteCount(let value): value.map(bytes) ?? "—"
+        case .byteRate(let value): rate(value)
+        case .gpuTime(let value): acceleratorTime(value)
+        }
+    }
+}
+
 /// Icon, text and an optional relative bar. One class serves every column of both tables.
 @MainActor final class ProcessCell: NSTableCellView {
     let label = NSTextField(labelWithString: "")
-    let icon = NSImageView()
-    let bar = MeterBar()
+    private let icon: NSImageView?
+    private let bar: MeterBar?
     private var renderedKey = ""
+    private var measurement: CellMeasurement?
+    private var measurementQuiet = false
     private let baseFont: NSFont
 
     init(key: String) {
         baseFont = key == "name" ? TableKit.nameFont : TableKit.numberFont
+        icon = key == "name" ? NSImageView() : nil
+        bar = ["cpu", "memory", "gpu", "ane", "neural", "read", "write", "disk"].contains(key) ? MeterBar() : nil
         super.init(frame: .zero)
         identifier = NSUserInterfaceItemIdentifier(key)
         label.translatesAutoresizingMaskIntoConstraints = false
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        bar.translatesAutoresizingMaskIntoConstraints = false
+        icon?.translatesAutoresizingMaskIntoConstraints = false
+        bar?.translatesAutoresizingMaskIntoConstraints = false
         label.lineBreakMode = .byTruncatingMiddle
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        icon.imageScaling = .scaleProportionallyUpOrDown
-        let name = key == "name"
+        icon?.imageScaling = .scaleProportionallyUpOrDown
         label.alignment = TableKit.isText(key) ? .left : .right
         label.font = baseFont
         addSubview(label); textField = label
-        if name {
+        if let icon {
             addSubview(icon); imageView = icon
             NSLayoutConstraint.activate([
                 icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
@@ -127,10 +144,14 @@ import UniformTypeIdentifiers
             ])
         } else {
             // Measurements: right-aligned to the header's edge, with room for the ranking bar on the left.
-            addSubview(bar)
+            if let bar {
+                addSubview(bar)
+                NSLayoutConstraint.activate([
+                    bar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6), bar.widthAnchor.constraint(equalToConstant: 28),
+                    bar.heightAnchor.constraint(equalToConstant: 3), bar.centerYAnchor.constraint(equalTo: centerYAnchor)
+                ])
+            }
             NSLayoutConstraint.activate([
-                bar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6), bar.widthAnchor.constraint(equalToConstant: 28),
-                bar.heightAnchor.constraint(equalToConstant: 3), bar.centerYAnchor.constraint(equalTo: centerYAnchor),
                 label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: key == "pid" ? 6 : 38),
                 label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
                 label.centerYAnchor.constraint(equalTo: centerYAnchor)
@@ -141,12 +162,18 @@ import UniformTypeIdentifiers
 
     /// Plain value. Missing measurements read as a tertiary dash; quiet values as secondary.
     func show(_ value: String, quiet: Bool = false) {
+        measurement = nil
         if renderedKey != "" {
             // Coming back from an attributed group title: restore the column's plain type.
             renderedKey = ""; label.font = baseFont; label.stringValue = value
         } else if label.stringValue != value { label.stringValue = value }
         let color: NSColor = value == "—" ? .tertiaryLabelColor : quiet ? .secondaryLabelColor : .labelColor
         if label.textColor != color { label.textColor = color }
+    }
+    func showMeasurement(_ next: CellMeasurement, quiet: Bool = false) {
+        guard measurement != next || measurementQuiet != quiet else { return }
+        show(next.text, quiet: quiet)
+        measurement = next; measurementQuiet = quiet
     }
     /// Application name with its member count set smaller and quieter, rebuilt only when either changes.
     /// A single-process application shows just its name; the disclosure triangle already says it has members.
@@ -162,11 +189,12 @@ import UniformTypeIdentifiers
         label.attributedStringValue = text
     }
     func setIcon(_ image: NSImage?) {
+        guard let icon else { return }
         if icon.image !== image { icon.image = image }
         if icon.isHidden != (image == nil) { icon.isHidden = image == nil }
     }
     func setBar(_ fraction: Double?, tint: NSColor) {
-        bar.update(fraction: fraction, tint: tint)
+        bar?.update(fraction: fraction, tint: tint)
     }
 }
 

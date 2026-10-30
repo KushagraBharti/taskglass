@@ -100,8 +100,18 @@ struct ResourceProcessTable: NSViewRepresentable {
                 resize(to: 0)
             }
         }
+        // AppKit may retain an item's identity in its outline cache, so keep the
+        // lightweight slot but release process snapshots and paths when recycled.
+        func releaseContents() {
+            title = ""; process = nil; family = nil
+            for child in children { child.releaseContents() }
+        }
         private func resize(to count: Int) {
-            while children.count > count { spare.append(children.removeLast()) }
+            while children.count > count {
+                let child = children.removeLast()
+                child.releaseContents()
+                spare.append(child)
+            }
             while children.count < count { children.append(spare.popLast() ?? Slot(child: true)) }
         }
     }
@@ -137,10 +147,14 @@ struct ResourceProcessTable: NSViewRepresentable {
 
             let families = processFamilies(rows, key: key, grouped: grouped)
             let oldCount = roots.count
-            while roots.count > families.count { spareRoots.append(roots.removeLast()) }
+            while roots.count > families.count {
+                let slot = roots.removeLast()
+                slot.releaseContents()
+                spareRoots.append(slot)
+            }
             while roots.count < families.count { roots.append(spareRoots.popLast() ?? Slot(child: false)) }
             for (slot, family) in zip(roots, families) { slot.show(family) }
-            maximum = max(1e-9, roots.compactMap { $0.value(key) }.max() ?? 1)
+            maximum = max(1e-9, roots.lazy.compactMap { $0.value(key) }.max() ?? 1)
             // Expansion is remembered across re-ranks and brief absences, but not for every app ever opened.
             if expandedIDs.count > 64 { expandedIDs.formIntersection(roots.map(\.contentID)) }
 
@@ -301,14 +315,16 @@ struct ResourceProcessTable: NSViewRepresentable {
             case "pid":
                 // A group has no PID; a blank cell, not a dash, since nothing is missing.
                 cell.show(slot.process.map { String($0.id) } ?? "", quiet: true)
-            case "cpu": cell.show(percent(slot.cpu), quiet: (slot.cpu ?? 1) < 0.05)
-            case "gpu": cell.show(acceleratorTime(slot.gpu), quiet: slot.gpu == 0)
-            case "ane": cell.show(slot.isChild ? "group" : acceleratorTime(slot.ane), quiet: slot.isChild || slot.ane == 0)
-            case "neural": cell.show(slot.neural.map(bytes) ?? "—", quiet: slot.neural == 0)
-            case "memory": cell.show(slot.memory.map(bytes) ?? "—")
-            case "read": cell.show(rate(slot.read), quiet: slot.read == 0)
-            case "write": cell.show(rate(slot.write), quiet: slot.write == 0)
-            default: cell.show(rate(slot.value("disk")), quiet: slot.value("disk") == 0)
+            case "cpu": cell.showMeasurement(.percentage(slot.cpu), quiet: (slot.cpu ?? 1) < 0.05)
+            case "gpu": cell.showMeasurement(.gpuTime(slot.gpu), quiet: slot.gpu == 0)
+            case "ane":
+                if slot.isChild { cell.show("group", quiet: true) }
+                else { cell.showMeasurement(.gpuTime(slot.ane), quiet: slot.ane == 0) }
+            case "neural": cell.showMeasurement(.byteCount(slot.neural), quiet: slot.neural == 0)
+            case "memory": cell.showMeasurement(.byteCount(slot.memory))
+            case "read": cell.showMeasurement(.byteRate(slot.read), quiet: slot.read == 0)
+            case "write": cell.showMeasurement(.byteRate(slot.write), quiet: slot.write == 0)
+            default: cell.showMeasurement(.byteRate(slot.value("disk")), quiet: slot.value("disk") == 0)
             }
             let ranked = key == monitor.resourceSort
             cell.setBar(ranked ? slot.value(key).map { $0 / maximum } : nil, tint: tint(key))

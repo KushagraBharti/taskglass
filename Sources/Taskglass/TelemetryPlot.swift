@@ -338,19 +338,27 @@ struct CoreTileMap: NSViewRepresentable {
     }
     func updateNSView(_ view: TileView, context: Context) {
         guard view.values != values || view.kinds != kinds else { return }
-        view.values = values; view.kinds = kinds; view.needsDisplay = true
-        view.setAccessibilityLabel(view.order.enumerated().map { "\(view.name(at: $0.offset, index: $0.element)): \(percent(values[$0.element]))" }.joined(separator: ", "))
+        let topologyChanged = view.values.count != values.count || view.kinds != kinds
+        view.values = values; view.kinds = kinds
+        if topologyChanged { view.rebuildTopology() }
+        view.needsDisplay = true
+        view.setAccessibilityLabel(view.order.enumerated().map { "\(view.labels[$0.offset]): \(percent(values[$0.element]))" }.joined(separator: ", "))
     }
     final class TileView: NSView {
         var values: [Double] = [], kinds: [String] = []
         override var isFlipped: Bool { true }
         func kind(_ index: Int) -> String { kinds.indices.contains(index) ? kinds[index] : "Cores" }
         func rank(_ kind: String) -> Int { kind == "Super" ? 0 : kind == "Performance" ? 1 : kind == "Efficiency" ? 2 : 3 }
-        var order: [Int] { values.indices.sorted { rank(kind($0)) == rank(kind($1)) ? $0 < $1 : rank(kind($0)) < rank(kind($1)) } }
-        func name(at position: Int, index: Int) -> String {
-            let k = kind(index)
-            let ordinal = order.prefix(position + 1).filter { kind($0) == k }.count
-            return k == "Cores" ? "C\(ordinal)" : "\(k.prefix(1))\(ordinal)"
+        private(set) var order: [Int] = []
+        private(set) var labels: [String] = []
+        func rebuildTopology() {
+            order = values.indices.sorted { rank(kind($0)) == rank(kind($1)) ? $0 < $1 : rank(kind($0)) < rank(kind($1)) }
+            var counts: [String: Int] = [:]
+            labels = order.map { index in
+                let k = kind(index)
+                counts[k, default: 0] += 1
+                return k == "Cores" ? "C\(counts[k]!)" : "\(k.prefix(1))\(counts[k]!)"
+            }
         }
         override func draw(_ dirtyRect: NSRect) {
             let columns = CoreTileMap.columns, gap = CoreTileMap.gap, height = CoreTileMap.tileHeight
@@ -365,16 +373,14 @@ struct CoreTileMap: NSViewRepresentable {
                 }
                 return
             }
-            var counts: [String: Int] = [:]
             for (position, index) in order.enumerated() {
                 let k = kind(index)
-                counts[k, default: 0] += 1
                 let rect = NSRect(x: CGFloat(position % columns) * (width + gap), y: CGFloat(position / columns) * (height + gap), width: width, height: height)
                 let tile = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
                 NSColor.white.withAlphaComponent(0.05).setFill(); tile.fill()
                 let usage = min(100, max(0, values[index]))
                 Palette.coreNS(k).withAlphaComponent(0.12 + usage / 100 * 0.68).setFill(); tile.fill()
-                let label = (k == "Cores" ? "C\(counts[k]!)" : "\(k.prefix(1))\(counts[k]!)") as NSString
+                let label = labels[position] as NSString
                 let labelSize = label.size(withAttributes: labelAttributes)
                 label.draw(at: NSPoint(x: rect.minX + 7, y: rect.midY - labelSize.height / 2), withAttributes: labelAttributes)
                 let value = String(format: "%.0f", usage) as NSString

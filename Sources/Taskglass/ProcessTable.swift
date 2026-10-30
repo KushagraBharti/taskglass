@@ -51,7 +51,8 @@ struct ProcessTable: NSViewRepresentable {
         }
         if columnsChanged { TableKit.fitVisibleColumns(table) }
         let sortChanged = c.sortKey != monitor.sort || c.ascending != monitor.ascending
-        guard c.rows != monitor.rows || sortChanged || columnsChanged || c.selected != monitor.selected else { return }
+        let rowsChanged = c.rows != monitor.rows
+        guard rowsChanged || sortChanged || columnsChanged || c.selected != monitor.selected else { return }
         c.updating = true
         defer { c.updating = false }
         if sortChanged {
@@ -59,10 +60,10 @@ struct ProcessTable: NSViewRepresentable {
             if table.sortDescriptors != descriptors { table.sortDescriptors = descriptors }
             c.sortKey = monitor.sort; c.ascending = monitor.ascending
         }
-        if c.rows != monitor.rows || sortChanged {
+        if rowsChanged || sortChanged {
             let countChanged = c.rows.count != monitor.rows.count
             c.rows = monitor.rows
-            c.maximum = c.rows.compactMap { c.barValue($0) }.max() ?? 0
+            c.maximum = c.rows.lazy.compactMap { c.barValue($0) }.max() ?? 0
             if countChanged { table.noteNumberOfRowsChanged() }
             TableKit.refreshVisible(table) { cell, key, row in
                 if row < c.rows.count { c.configure(cell, key: key, process: c.rows[row]) }
@@ -115,14 +116,14 @@ struct ProcessTable: NSViewRepresentable {
                 if cell.toolTip != tip { cell.toolTip = tip }
                 return
             case "pid": cell.show(String(p.id), quiet: true)
-            case "cpu": cell.show(percent(p.cpu), quiet: (p.cpu ?? 1) < 0.05)
-            case "memory": cell.show(p.footprint.map(bytes) ?? "—")
-            case "gpu": cell.show(acceleratorTime(p.gpuTime), quiet: p.gpuTime == 0)
-            case "neural": cell.show(p.neuralMemory.map(bytes) ?? "—", quiet: p.neuralMemory == 0)
-            case "resident": cell.show(bytes(p.resident))
+            case "cpu": cell.showMeasurement(.percentage(p.cpu), quiet: (p.cpu ?? 1) < 0.05)
+            case "memory": cell.showMeasurement(.byteCount(p.footprint))
+            case "gpu": cell.showMeasurement(.gpuTime(p.gpuTime), quiet: p.gpuTime == 0)
+            case "neural": cell.showMeasurement(.byteCount(p.neuralMemory), quiet: p.neuralMemory == 0)
+            case "resident": cell.showMeasurement(.byteCount(p.resident))
             case "threads": cell.show(String(p.threads))
-            case "read": cell.show(rate(p.readRate), quiet: p.readRate == 0)
-            case "write": cell.show(rate(p.writeRate), quiet: p.writeRate == 0)
+            case "read": cell.showMeasurement(.byteRate(p.readRate), quiet: p.readRate == 0)
+            case "write": cell.showMeasurement(.byteRate(p.writeRate), quiet: p.writeRate == 0)
             default: cell.show(UserNames.name(p.uid), quiet: true)
             }
             let ranked = key == sortKey && !ascending && maximum > 0

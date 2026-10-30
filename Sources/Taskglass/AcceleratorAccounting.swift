@@ -19,7 +19,9 @@ struct GPUAccounting {
     mutating func update(_ clients: [GPUClientCounter], births currentBirths: [Int32: UInt64], now: Double, available: Bool) -> [Int32: Double] {
         guard available, now.isFinite else { reset(); return [:] }
         let elapsed = time.map { now - $0 }
-        let current = Dictionary(clients.filter { currentBirths[$0.pid] != nil }.map { ($0.id, $0) }, uniquingKeysWith: { _, next in next })
+        var current: [UInt64: GPUClientCounter] = [:]
+        current.reserveCapacity(clients.count)
+        for client in clients where currentBirths[client.pid] != nil { current[client.id] = client }
         defer { previous = current; births = currentBirths; time = now }
         guard let elapsed, elapsed > 0 else { return [:] }
         var invalid = Set<Int32>(), totals: [Int32: Double] = [:]

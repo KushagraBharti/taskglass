@@ -28,7 +28,9 @@ func processPrecedes(_ a: ProcessRow, _ b: ProcessRow, key: String, ascending: B
 /// Missing measurements do not compete with a real zero. Ranking stays independent
 /// of the process table's search/filter and is recomputed only after a sample.
 func rankedProcesses(_ rows: [ProcessRow], key: String, limit: Int) -> [ProcessRow] {
-    let measured = rows.filter {
+    guard limit > 0 else { return [] }
+    // Filter while selecting the small leader set; do not copy every measured row.
+    let measured = rows.lazy.filter {
         switch key {
         case "gpu": return $0.gpuTime != nil
         case "ane": return $0.aneGroupTime != nil
@@ -40,7 +42,6 @@ func rankedProcesses(_ rows: [ProcessRow], key: String, limit: Int) -> [ProcessR
         default: return $0.footprint != nil
         }
     }
-    guard limit > 0 else { return [] }
     if limit <= 8 {
         var best: [ProcessRow] = []
         best.reserveCapacity(limit)

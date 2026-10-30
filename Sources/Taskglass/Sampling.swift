@@ -175,16 +175,23 @@ actor Sampler {
                     }
                 } ?? []
                 if let clients { tg_free(clients) }
-                let identities = Dictionary(rawRows.map { ($0.pid, $0.birth) }, uniquingKeysWith: { _, next in next })
+                var identities: [Int32: UInt64] = [:]
+                identities.reserveCapacity(rawRows.count)
+                for row in rawRows { identities[row.pid] = row.birth }
                 result.gpuAccountingAvailable = available != 0
                 gpuRates = gpuAccounting.update(counters, births: identities, now: ProcessInfo.processInfo.systemUptime, available: available != 0)
             } else { gpuAccounting.reset() }
             if includeANE {
                 tg_ane_process_groups(pointer, count)
-                let counters = Dictionary(rawRows.filter { $0.ane_valid != 0 }.map { ($0.ane_group, $0.ane_nanoseconds) }, uniquingKeysWith: { first, _ in first })
+                var counters: [UInt64: UInt64] = [:]
+                for row in rawRows where row.ane_valid != 0 {
+                    if counters[row.ane_group] == nil { counters[row.ane_group] = row.ane_nanoseconds }
+                }
                 result.aneAccountingAvailable = !counters.isEmpty
                 aneRates = aneAccounting.update(counters, now: ProcessInfo.processInfo.systemUptime)
             } else { aneAccounting.reset() }
+            // One scratch path buffer per sample, allocated only for new identities.
+            var pathBuffer: [CChar] = []
             for index in 0..<Int(count) {
                 var p = pointer[index]
                 let shortName = withUnsafePointer(to: &p.name) { $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) } }
@@ -194,9 +201,11 @@ actor Sampler {
                 let application: ProcessApplication?
                 if let old, old.birth == p.birth && old.shortName == shortName { path = old.path; name = old.name; application = old.application }
                 else {
-                    var buffer = [CChar](repeating: 0, count: 4096)
-                    path = tg_path(p.pid, &buffer, 4096) > 0 ? String(decoding: buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self) : nil
-                    name = path?.split(separator: "/").last.map(String.init) ?? shortName
+                    if pathBuffer.isEmpty { pathBuffer = [CChar](repeating: 0, count: 4096) }
+                    path = tg_path(p.pid, &pathBuffer, Int32(pathBuffer.count)) > 0 ? pathBuffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) } : nil
+                    name = path.map { path in
+                        path.lastIndex(of: "/").map { String(path[path.index(after: $0)...]) } ?? path
+                    } ?? shortName
                     application = processApplication(path)
                 }
                 let cpu = old?.birth == p.birth ? cpuPercent(next: p.cpu, previous: old!.cpu, elapsed: processElapsed) : nil

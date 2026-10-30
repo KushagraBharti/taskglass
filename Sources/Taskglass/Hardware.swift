@@ -43,7 +43,16 @@ struct HardwareMetrics: Sendable {
 final class HardwareReader {
     private var probe: OpaquePointer?
     private var initialized = false
-    private var previous: TGHardware?
+    private struct DiskCounters {
+        let valid: Int32, opsValid: Int32
+        let identity: UInt64, read: UInt64, write: UInt64, readOps: UInt64, writeOps: UInt64
+        init(_ r: TGHardware) {
+            valid = r.disk_valid; opsValid = r.disk_ops_valid; identity = r.disk_identity
+            read = r.disk_read; write = r.disk_write; readOps = r.disk_read_ops; writeOps = r.disk_write_ops
+        }
+    }
+    private var previous: DiskCounters?
+    private var metadataLoaded = false
     private var previousTime: Double?
     private var slowTime: Double = -.infinity
     private var detailsActive = false
@@ -63,19 +72,20 @@ final class HardwareReader {
         let sampleTime = ProcessInfo.processInfo.systemUptime
         if slow { slowTime = now }
         var h = HardwareMetrics()
-        h.chip = cText(r.chip); h.model = cText(r.model)
+        h.chip = metadataLoaded ? cached.chip : cText(r.chip)
+        h.model = metadataLoaded ? cached.model : cText(r.model)
         h.gpuCores = Int(r.gpu_cores)
         if r.gpu_valid != 0 { h.gpuUsage = measured(r.gpu_usage) }
         h.rendererUsage = measured(r.renderer_usage); h.tilerUsage = measured(r.tiler_usage)
         if r.gpu_memory_valid != 0 { h.gpuAllocated = r.gpu_allocated; h.gpuInUse = r.gpu_in_use }
         h.cpuWatts = measured(r.cpu_watts); h.gpuWatts = measured(r.gpu_watts); h.aneWatts = measured(r.ane_watts)
         h.anePresent = r.ane_present != 0; h.powerSource = cText(r.power_source)
-        if let previous, let previousTime, sampleTime > previousTime, r.disk_valid != 0, previous.disk_valid != 0, previous.disk_identity == r.disk_identity {
-            h.diskRead = Double(counterDelta(r.disk_read, previous.disk_read)) / (sampleTime - previousTime)
-            h.diskWrite = Double(counterDelta(r.disk_write, previous.disk_write)) / (sampleTime - previousTime)
-            if r.disk_ops_valid != 0 && previous.disk_ops_valid != 0 {
-                h.diskReadIOPS = Double(counterDelta(r.disk_read_ops, previous.disk_read_ops)) / (sampleTime - previousTime)
-                h.diskWriteIOPS = Double(counterDelta(r.disk_write_ops, previous.disk_write_ops)) / (sampleTime - previousTime)
+        if let previous, let previousTime, sampleTime > previousTime, r.disk_valid != 0, previous.valid != 0, previous.identity == r.disk_identity {
+            h.diskRead = Double(counterDelta(r.disk_read, previous.read)) / (sampleTime - previousTime)
+            h.diskWrite = Double(counterDelta(r.disk_write, previous.write)) / (sampleTime - previousTime)
+            if r.disk_ops_valid != 0 && previous.opsValid != 0 {
+                h.diskReadIOPS = Double(counterDelta(r.disk_read_ops, previous.readOps)) / (sampleTime - previousTime)
+                h.diskWriteIOPS = Double(counterDelta(r.disk_write_ops, previous.writeOps)) / (sampleTime - previousTime)
             }
         }
         if r.storage_valid != 0 { h.diskTotal = r.disk_total; h.diskAvailable = r.disk_available }
@@ -97,23 +107,30 @@ final class HardwareReader {
             }
         } else { h.temperatures = cached.temperatures }
         h.cpuTemperature = measured(r.cpu_temperature); h.gpuTemperature = measured(r.gpu_temperature)
-        h.tier0 = cText(r.tier0_name); h.tier1 = cText(r.tier1_name)
+        h.tier0 = metadataLoaded ? cached.tier0 : cText(r.tier0_name)
+        h.tier1 = metadataLoaded ? cached.tier1 : cText(r.tier1_name)
         h.tier0Count = Int(r.tier0_cores); h.tier1Count = Int(r.tier1_cores)
-        var kindBytes = r.core_kind
-        h.coreKinds = withUnsafePointer(to: &kindBytes) { ptr in
-            ptr.withMemoryRebound(to: UInt8.self, capacity: 128) { bytes in
-                (0..<ProcessInfo.processInfo.activeProcessorCount).map { i in
-                    switch bytes[i] {
-                    case 69: return "Efficiency"
-                    case 77: return "Performance"
-                    case 83: return "Super"
-                    case 80: return h.tier0 == "Super" || h.tier1 == "Super" ? "Super" : "Performance"
-                    default: return "Cores"
+        let coreCount = min(128, ProcessInfo.processInfo.activeProcessorCount)
+        if metadataLoaded && cached.coreKinds.count == coreCount {
+            h.coreKinds = cached.coreKinds
+        } else {
+            var kindBytes = r.core_kind
+            h.coreKinds = withUnsafePointer(to: &kindBytes) { ptr in
+                ptr.withMemoryRebound(to: UInt8.self, capacity: 128) { bytes in
+                    (0..<coreCount).map { i in
+                        switch bytes[i] {
+                        case 69: return "Efficiency"
+                        case 77: return "Performance"
+                        case 83: return "Super"
+                        case 80: return h.tier0 == "Super" || h.tier1 == "Super" ? "Super" : "Performance"
+                        default: return "Cores"
+                        }
                     }
                 }
             }
         }
-        previous = r; previousTime = sampleTime; cached = h
+        metadataLoaded = true
+        previous = DiskCounters(r); previousTime = sampleTime; cached = h
         return h
     }
     deinit { if let probe { tg_hardware_destroy(probe) } }

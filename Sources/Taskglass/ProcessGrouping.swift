@@ -6,7 +6,12 @@ struct ProcessFamily: Equatable {
     let members: [ProcessRow]
     let application: Bool
 
-    var iconPath: String? { members.compactMap { ($0.application ?? processApplication($0.path))?.path }.first }
+    var iconPath: String? {
+        for row in members {
+            if let path = (row.application ?? processApplication(row.path))?.path { return path }
+        }
+        return nil
+    }
     let gpu: Double?
     let neuralMemory: UInt64?
     let ane: Double?
@@ -55,36 +60,61 @@ struct ProcessFamily: Equatable {
 /// Executables inside the same outer app bundle share one family, including
 /// nested helper apps. Background processes remain individually identifiable.
 func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [ProcessFamily] {
-    var members: [String: [ProcessRow]] = [:]
-    var names: [String: String] = [:]
-    var applications = Set<String>()
-    for row in rows {
+    struct Bucket {
+        var name: String
+        var members: [ProcessRow] = []
+        mutating func append(_ row: ProcessRow, name: String) {
+            self.name = name
+            members.append(row)
+        }
+    }
+    var buckets: [String: Bucket] = [:]
+    var individuals: [Int] = []
+    individuals.reserveCapacity(rows.count)
+    let byANE = key == "ane"
+    for (index, row) in rows.enumerated() {
         let id: String
         let name: String
-        if key == "ane", let group = row.aneGroup {
+        if byANE, let group = row.aneGroup {
             id = "coalition:\(group)"
             name = "Resource group \(group)"
-            applications.insert(id)
         } else if grouped, let app = row.application ?? processApplication(row.path) {
             id = app.path
             name = app.name
-            applications.insert(id)
         } else {
-            id = "pid:\(row.id):\(row.birth)"
-            name = row.name
+            individuals.append(index)
+            continue
         }
-        members[id, default: []].append(row)
-        names[id] = name
+        // Mutate through the dictionary's modify accessor, without copying a
+        // growing member array or maintaining separate title/application maps.
+        buckets[id, default: Bucket(name: name)].append(row, name: name)
     }
-    return members.map { id, children in
-        let apps = key == "ane" ? Set(children.compactMap { ($0.application ?? processApplication($0.path))?.name }) : Set<String>()
-        let title = key == "ane" && id.hasPrefix("coalition:") ? (apps.count == 1 ? apps.first! : apps.count > 1 ? "Shared: " + apps.sorted().joined(separator: ", ") : (children.first!.name + " · " + names[id]!)) : names[id]!
-        return ProcessFamily(id: id, name: title, members: children.count > 1 ? children.sorted { processPrecedes($0, $1, key: key, ascending: false) } : children, application: applications.contains(id))
-    }.sorted {
+    // Reserve the actual output size: ANE grouping can reduce hundreds of
+    // processes to a few groups, so row-count capacity would stay mostly unused.
+    var families: [ProcessFamily] = []
+    families.reserveCapacity(individuals.count + buckets.count)
+    for index in individuals {
+        let row = rows[index]
+        families.append(ProcessFamily(id: "pid:\(row.id):\(row.birth)", name: row.name, members: [row], application: false))
+    }
+    for (id, bucket) in buckets {
+        let children = bucket.members
+        var title = bucket.name
+        if byANE && id.hasPrefix("coalition:") {
+            var apps = Set<String>()
+            for row in children {
+                if let name = (row.application ?? processApplication(row.path))?.name { apps.insert(name) }
+            }
+            title = apps.count == 1 ? apps.first! : apps.count > 1 ? "Shared: " + apps.sorted().joined(separator: ", ") : children.first!.name + " · " + title
+        }
+        families.append(ProcessFamily(id: id, name: title, members: children.count > 1 ? children.sorted { processPrecedes($0, $1, key: key, ascending: false) } : children, application: true))
+    }
+    families.sort {
         let a = $0.value(key) ?? -1, b = $1.value(key) ?? -1
         if a != b { return a > b }
         return $0.id < $1.id
     }
+    return families
 }
 
 struct ProcessApplication: Sendable, Equatable {
