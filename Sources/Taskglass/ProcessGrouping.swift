@@ -153,10 +153,10 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         }
         families.append(ProcessFamily(id: id, name: title, members: children, application: true))
     }
-    families.sort {
-        let a = $0.value(valueKey) ?? -1, b = $1.value(valueKey) ?? -1
-        if a != b { return a > b }
-        return $0.precedesOnTie($1)
+    switch valueKey {
+    case .memory: sortByCachedKey(&families, ascending: false, key: { OptionalCounter($0.memory) }, tie: { $0.precedesOnTie($1) })
+    case .neural: sortByCachedKey(&families, ascending: false, key: { OptionalCounter($0.neuralMemory) }, tie: { $0.precedesOnTie($1) })
+    default: sortByCachedKey(&families, ascending: false, key: { $0.value(valueKey) ?? -1 }, tie: { $0.precedesOnTie($1) })
     }
     return families
 }

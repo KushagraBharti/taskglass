@@ -44,6 +44,26 @@ func testAcceleratorAccounting() {
     let apps = processFamilies(rows, key: "gpu", grouped: true)
     precondition(apps.first?.gpu == 60 && apps.first?.neuralMemory == 150)
     precondition(rankedProcesses(rows, key: "gpu", limit: 2).count == 2)
+    // Integer counters must never use Double.init(bitPattern:) or lose low bits.
+    // More than 64 rows also exercises the compact-key permutation path.
+    let memoryValues: [UInt64?] = [.max, (1 << 53) + 1, 1 << 53, 1, 0, nil]
+    var memoryRows: [ProcessRow] = []
+    for (rank, value) in memoryValues.enumerated() {
+        for offset in 0..<20 {
+            var item = row(Int32(rank * 20 + offset + 1), group: 9, app: "Memory")
+            item.neuralMemory = value
+            memoryRows.append(item)
+        }
+    }
+    let expected = memoryValues.indices.flatMap { rank in (1...20).reversed().map { Int32(rank * 20 + $0) } }
+    for ascending in [false, true] {
+        var sorted = Array(memoryRows.reversed())
+        sortProcesses(&sorted, key: .neural, ascending: ascending)
+        precondition(sorted.map(\.id) == (ascending ? Array(expected.reversed()) : expected))
+        precondition(sorted == memoryRows.sorted { processPrecedes($0, $1, key: .neural, ascending: ascending) })
+    }
+    let memoryFamilies = processFamilies(memoryRows, key: "neural", grouped: false)
+    precondition(memoryFamilies.map { $0.members.first!.id } == memoryValues.indices.flatMap { rank in (1...20).map { Int32(rank * 20 + $0) } })
     precondition(acceleratorTime(nil) == "—" && acceleratorTime(.nan) == "—" && acceleratorTime(0) == "0.0 ms/s")
     print("PASS: accelerator units, stable clients, new/removed clients, context resets, PID reuse, failed scans, group deduplication and memory ownership")
 }

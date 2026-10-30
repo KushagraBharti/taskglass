@@ -15,8 +15,11 @@ func processPrecedes(_ a: ProcessRow, _ b: ProcessRow, key: ProcessSortKey, asce
         let order = a.name.localizedStandardCompare(b.name)
         comparison = order == .orderedSame ? a.id < b.id : order == .orderedAscending
     case .pid: comparison = a.id < b.id
-    case .gpu, .ane, .neural:
-        func value(_ p: ProcessRow) -> Double { key == .gpu ? p.gpuTime ?? -1 : key == .ane ? p.aneGroupTime ?? -1 : p.neuralMemory.map(Double.init) ?? -1 }
+    case .neural:
+        let av = OptionalCounter(a.neuralMemory), bv = OptionalCounter(b.neuralMemory)
+        comparison = av == bv ? a.id < b.id : av < bv
+    case .gpu, .ane:
+        func value(_ p: ProcessRow) -> Double { key == .gpu ? p.gpuTime ?? -1 : p.aneGroupTime ?? -1 }
         comparison = value(a) == value(b) ? a.id < b.id : value(a) < value(b)
     case .cpu: comparison = (a.cpu ?? -1) == (b.cpu ?? -1) ? a.id < b.id : (a.cpu ?? -1) < (b.cpu ?? -1)
     case .uid: comparison = a.uid == b.uid ? a.id < b.id : a.uid < b.uid
@@ -31,6 +34,43 @@ func processPrecedes(_ a: ProcessRow, _ b: ProcessRow, key: ProcessSortKey, asce
     default: comparison = (a.footprint ?? 0) == (b.footprint ?? 0) ? a.id < b.id : (a.footprint ?? 0) < (b.footprint ?? 0)
     }
     return ascending ? comparison : (a.id == b.id ? false : !comparison)
+}
+
+/// Preserve the full integer range and keep unavailable below a measured zero.
+struct OptionalCounter: Comparable {
+    let available: Bool
+    let value: UInt64
+    init(_ value: UInt64?) { available = value != nil; self.value = value ?? 0 }
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        lhs.available == rhs.available ? lhs.value < rhs.value : !lhs.available
+    }
+}
+
+/// Cache numeric keys once and sort compact indexes. Keep integer memory
+/// counters exact, including values beyond Double's integral precision.
+func sortProcesses(_ rows: inout [ProcessRow], key: ProcessSortKey, ascending: Bool) {
+    // A tiny search result is cheaper to sort directly. Text/PID sorts often
+    // arrive in long existing runs and don't need numeric key extraction.
+    guard rows.count > 64, key != .name, key != .pid else {
+        rows.sort { processPrecedes($0, $1, key: key, ascending: ascending) }
+        return
+    }
+    let tie: (ProcessRow, ProcessRow) -> Bool = { ascending ? $0.id < $1.id : $0.id > $1.id }
+    switch key {
+    case .memory: sortByCachedKey(&rows, ascending: ascending, key: { $0.footprint ?? 0 }, tie: tie)
+    case .resident: sortByCachedKey(&rows, ascending: ascending, key: { $0.resident }, tie: tie)
+    case .threads: sortByCachedKey(&rows, ascending: ascending, key: { $0.threads }, tie: tie)
+    case .uid: sortByCachedKey(&rows, ascending: ascending, key: { $0.uid }, tie: tie)
+    case .cpu: sortByCachedKey(&rows, ascending: ascending, key: { $0.cpu ?? -1 }, tie: tie)
+    case .gpu: sortByCachedKey(&rows, ascending: ascending, key: { $0.gpuTime ?? -1 }, tie: tie)
+    case .ane: sortByCachedKey(&rows, ascending: ascending, key: { $0.aneGroupTime ?? -1 }, tie: tie)
+    case .neural: sortByCachedKey(&rows, ascending: ascending, key: { OptionalCounter($0.neuralMemory) }, tie: tie)
+    case .read: sortByCachedKey(&rows, ascending: ascending, key: { $0.readRate ?? -1 }, tie: tie)
+    case .write: sortByCachedKey(&rows, ascending: ascending, key: { $0.writeRate ?? -1 }, tie: tie)
+    case .disk:
+        sortByCachedKey(&rows, ascending: ascending, key: { row in row.readRate.flatMap { read in row.writeRate.map { read + $0 } } ?? -1 }, tie: tie)
+    case .name, .pid: break // Handled by the direct-sort path above.
+    }
 }
 
 /// Missing measurements do not compete with a real zero. Ranking stays independent

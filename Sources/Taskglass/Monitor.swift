@@ -122,7 +122,7 @@ import Observation
                 (query.isEmpty || (searchesPID && String($0.id).contains(query)) || $0.name.localizedCaseInsensitiveContains(query))
             }
         }
-        arranged.sort { processPrecedes($0, $1, key: key, ascending: up) }
+        sortProcesses(&arranged, key: key, ascending: up)
         rows = arranged
     }
 

@@ -171,3 +171,13 @@ Rejected a narrower CPU tick-conversion arithmetic fast path. It matched wide ra
 Merged touching or overlapping cells of the same shade and core row without crossing a geometric gap. The renderer now submits those rectangle batches to the current drawing context rather than allocating eight intermediate paths. Pixel output matched at 1x/2x for dense/narrow layouts, missing/nonfinite cores, restarts and gaps. Full geometry-plus-2x-raster timing for 601 samples/18 cores improved 3.754 to 3.191 ms with rapidly changing values, and 3.419 to 1.839 ms with mostly idle values. The latter reduced cells from 10,139 to 714. These are isolated renderer measurements, not whole-app CPU claims. Short-history improvements were smaller. Release build passed.
 
 Direct CGContext.fill(rects) changed a few antialiased edge pixels; retained addRects + fillPath, which matched exactly.
+
+## Pass 24 investigation
+
+Batched line points reduced isolated path-construction time, but full chart update/layout/raster measurements were essentially unchanged and the longest layout case regressed slightly. Retained the current implementation instead of adding another temporary point buffer. Pixel output matched. Experiment stays in .build/optimization/pass24.
+
+## Pass 25: compact numeric sorting
+
+Numeric sorts now cache keys once, sort compact key/index records, then permute large process/family records once. At 750 rows, ordinary process CPU sorting improved 0.334 to 0.089 ms, memory 0.333 to 0.067, GPU 0.329 to 0.128 and disk 0.331 to 0.067. Grouped resource ranking improved CPU 0.235 to 0.124, memory 0.277 to 0.119, GPU 0.228 to 0.125 and disk 0.292 to 0.123. These are frozen fixtures with output consumed, not whole-app CPU measurements. Name/PID and small-result sorts retain their direct path.
+
+All column orderings matched in both directions except an existing neural-memory defect exposed by extreme counters: map(Double.init) selected the bit-pattern initializer. Neural-memory sorting now compares exact UInt64 counters, distinguishing missing from zero and preserving low bits beyond Double precision. Added that specific regression case to the existing accelerator check. Sampling, accelerator accounting and monitor lifecycle checks passed; no CPU/GPU/ANE collection semantics changed.
