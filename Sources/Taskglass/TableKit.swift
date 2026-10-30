@@ -232,7 +232,10 @@ enum CellMeasurement: Equatable {
     static func icon(for row: ProcessRow) -> NSImage { row.application.map { icon(forBundle: $0.path) } ?? executable }
     static func icon(forBundle path: String) -> NSImage { listCache.image(for: path) }
     static func inspectorIcon(for row: ProcessRow) -> NSImage {
-        row.application.map { inspectorCache.image(for: $0.path) } ?? inspectorExecutable
+        inspectorIcon(for: row.metadata)
+    }
+    static func inspectorIcon(for metadata: ProcessMetadata) -> NSImage {
+        metadata.application.map { inspectorCache.image(for: $0.path) } ?? inspectorExecutable
     }
 
     /// Bounded second-chance cache. A new app evicts one cold icon instead of

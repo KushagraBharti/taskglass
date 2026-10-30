@@ -145,3 +145,7 @@ The initial combined update/layout/bitmap result made Neural Engine look unusual
 ## Pass 19: stable controls and Overview sections
 
 Process/thread totals now publish only when their values change. Resource ranking controls, Overview process rows, the battery panel and footer have independent observation boundaries. An instrumented native fixture confirmed that 20 unrelated fast updates did not rebuild those sections, while process counts, grouping, battery readings and their own settings still updated. Overview rows reuse formatted metrics for visible and accessibility text. Release build passed. Continuous timer remains 05:53:30–11:53:30 UTC; no scheduled continuation exists.
+
+## Pass 20: selected-process inspector
+
+Identity, process metadata, executable details and quit controls now compare their own small inputs instead of rebuilding with activity readings. Account-name completion is observed by the User row. Four temporary history arrays became one pass deriving all chart scales with the same finite-value handling and floors. The warmed native fixture kept the static sections unchanged through 100 live updates and updated quit availability when the process disappeared; the initial account-name/layout settling caused one extra process-info evaluation, not a recurring rebuild. Update/layout median was 0.944 to 0.913 ms (small, load-sensitive). Release build passed; action-time PID/birth checks remain unchanged.

@@ -6,15 +6,12 @@ import AppKit
 /// for processes the user doesn't own and for any process missing from the latest sample.
 struct ProcessInspector: View {
     let monitor: Monitor
-    /// Bumped when a background account-name lookup finishes, so the User row replaces the UID.
-    private let names = SwiftUI.State(initialValue: 0)
 
     var body: some View {
         Group {
             // `selection` is current and readable; `selectedProcessRecord` falls back to the last observed record.
             if let row = monitor.selectedProcessRecord { detail(row, current: monitor.selection != nil) } else { placeholder }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UserNames.didResolve)) { _ in names.wrappedValue &+= 1 }
     }
 
     var placeholder: some View {
@@ -31,38 +28,31 @@ struct ProcessInspector: View {
 
     func detail(_ row: ProcessRow, current: Bool) -> some View {
         let parent = current ? monitor.processRecord(row.parent) : nil
-        let owned = row.uid == getuid() && row.id != getpid()
         // Footprint and disk rates share one rusage source: no footprint means none of them are readable.
         let readable = row.footprint != nil
         let pending = current ? "Measuring" : "—"
         let points = monitor.processHistory
+        let limits = ProcessTrendLimits(points)
         return VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(nsImage: ProcessIcons.inspectorIcon(for: row)).resizable().interpolation(.high)
-                            .frame(width: 40, height: 40).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.name).font(.system(size: 14, weight: .semibold)).lineLimit(2).textSelection(.enabled)
-                            Text("PID \(String(row.id))").font(.caption11).foregroundStyle(.secondary).monospacedDigit().textSelection(.enabled)
-                        }
-                    }
+                    InspectorIdentity(metadata: row.metadata, pid: row.id).equatable()
                     if !current {
                         Notice("Not in the latest sample. It may have exited, or macOS may no longer allow access. Values are the last observed.")
                     }
                     InspectorSection(current ? "Activity" : "Last observed", note: monitor.paused ? "Paused" : "Trends: last \(windowName(trendWindow))") {
                         InspectorRow("CPU", row.cpu.map { percent($0) } ?? pending, help: TableKit.cpuHelp)
                         ProcessTrend(points: points, series: .processCPU, tint: Palette.cpu, unit: .percent,
-                                     ceiling: Self.cpuCeiling(points), window: trendWindow, label: "\(row.name) CPU")
+                                     ceiling: limits.cpu, window: trendWindow, label: "\(row.name) CPU")
                         InspectorRow("Memory", row.footprint.map(bytes) ?? "Not readable", help: TableKit.footprintHelp)
                         ProcessTrend(points: points, series: .processMemory, tint: Palette.memory, unit: .bytes,
-                                     ceiling: Self.memoryCeiling(points), window: trendWindow, label: "\(row.name) memory")
+                                     ceiling: limits.memory, window: trendWindow, label: "\(row.name) memory")
                         InspectorRow("GPU time", acceleratorTime(row.gpuTime), help: TableKit.gpuHelp)
                         ProcessTrend(points: points, series: .processGPUTime, tint: Palette.gpu, unit: .millisecondsPerSecond,
-                                     ceiling: niceCeiling(points.compactMap(MetricSeries.processGPUTime.value).max() ?? 0, minimum: 10), window: trendWindow, label: "\(row.name) GPU time")
+                                     ceiling: limits.gpu, window: trendWindow, label: "\(row.name) GPU time")
                         InspectorRow("Neural memory", row.neuralMemory.map(bytes) ?? "Not readable", help: TableKit.neuralHelp)
                         ProcessTrend(points: points, series: .processNeuralMemory, tint: Palette.neural, unit: .bytes,
-                                     ceiling: binaryCeiling(points.compactMap(MetricSeries.processNeuralMemory.value).max() ?? 0, minimum: 1_048_576), window: trendWindow, label: "\(row.name) Neural Engine memory")
+                                     ceiling: limits.neural, window: trendWindow, label: "\(row.name) Neural Engine memory")
                         InspectorRow("ANE group time", acceleratorTime(row.aneGroupTime), help: TableKit.aneHelp)
                         if let group = row.aneGroup {
                             InspectorRow("Resource group", String(group))
@@ -74,65 +64,125 @@ struct ProcessInspector: View {
                         InspectorRow("Disk read", readable ? row.readRate.map { rate($0) } ?? pending : "Not readable", help: TableKit.diskHelp)
                         InspectorRow("Disk write", readable ? row.writeRate.map { rate($0) } ?? pending : "Not readable", help: TableKit.diskHelp)
                     }
-                    InspectorSection("Process") {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text("Parent").foregroundStyle(.secondary)
-                            Spacer(minLength: 12)
-                            if let parent {
-                                Button("\(parent.name) (\(String(parent.id)))") { monitor.selected = parent.id }
-                                    .buttonStyle(.link).lineLimit(1).truncationMode(.middle)
-                                    .help("Select the parent process")
-                            } else {
-                                Text(String(row.parent)).monospacedDigit().textSelection(.enabled)
-                            }
-                        }.font(.body12).frame(minHeight: 20)
-                        InspectorRow("User", userText(row.uid))
-                        if let application = row.application {
-                            InspectorRow("Application", application.name)
-                        }
-                    }
-                    if let path = row.path {
-                        InspectorSection("Executable") {
-                            Text(path).font(.caption11).foregroundStyle(.secondary).textSelection(.enabled)
-                                .lineLimit(4).truncationMode(.middle).fixedSize(horizontal: false, vertical: true)
-                            Button("Show in Finder") { revealInFinder(path) }.controlSize(.small).padding(.top, 2)
-                        }
-                    }
+                    InspectorProcessInfo(monitor: monitor, parent: row.parent, parentName: parent?.name,
+                                         uid: row.uid, application: row.application?.name).equatable()
+                    if let path = row.path { InspectorExecutable(path: path).equatable() }
                 }
                 .padding(20)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Button("Quit…") { monitor.requestQuit(force: false) }
-                    Button("Force Quit…", role: .destructive) { monitor.requestQuit(force: true) }
-                }
-                // Never offered on a last-observed record: its PID may already belong to something else.
-                .disabled(!current || !owned)
-                if !current || !owned {
-                    Text(!current ? "Unavailable in the latest sample." : row.id == getpid() ? "Taskglass can't quit itself." : "Owned by another user.")
-                        .font(.caption11).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 20).padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .top) { Palette.keyline.frame(height: Metrics.hairline) }
+            InspectorActions(monitor: monitor, current: current, pid: row.id, uid: row.uid).equatable()
         }
         .font(.body12)
     }
+}
 
-    /// "account (501)" once the account name is known; the UID alone until then, or if the directory has none.
-    func userText(_ uid: UInt32) -> String {
-        _ = names.wrappedValue
-        return UserNames.resolved(uid).map { "\($0) (\(uid))" } ?? String(uid)
+/// Derive all four inspector scales in one pass without filtered temporary arrays.
+struct ProcessTrendLimits {
+    let cpu: Double, memory: Double, gpu: Double, neural: Double
+    init(_ points: [Point]) {
+        var cpuPeak = 0.0, memoryPeak = 0.0, gpuPeak = 0.0, neuralPeak = 0.0
+        for point in points {
+            if let value = MetricSeries.processCPU.value(point) { cpuPeak = max(cpuPeak, value) }
+            if let value = MetricSeries.processMemory.value(point) { memoryPeak = max(memoryPeak, value) }
+            if let value = MetricSeries.processGPUTime.value(point) { gpuPeak = max(gpuPeak, value) }
+            if let value = MetricSeries.processNeuralMemory.value(point) { neuralPeak = max(neuralPeak, value) }
+        }
+        cpu = max(100, (cpuPeak / 100).rounded(.up) * 100)
+        memory = binaryCeiling(memoryPeak, minimum: 16_777_216)
+        gpu = niceCeiling(gpuPeak, minimum: 10)
+        neural = binaryCeiling(neuralPeak, minimum: 1_048_576)
     }
-    /// 100% (one core) unless the process used more, then whole cores.
-    static func cpuCeiling(_ points: [Point]) -> Double {
-        let peak = points.compactMap(MetricSeries.processCPU.value).max() ?? 0
-        return max(100, (peak / 100).rounded(.up) * 100)
+}
+
+private struct InspectorIdentity: View, Equatable {
+    let metadata: ProcessMetadata
+    let pid: Int32
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(nsImage: ProcessIcons.inspectorIcon(for: metadata)).resizable().interpolation(.high)
+                .frame(width: 40, height: 40).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(metadata.name).font(.system(size: 14, weight: .semibold)).lineLimit(2).textSelection(.enabled)
+                Text("PID \(String(pid))").font(.caption11).foregroundStyle(.secondary).monospacedDigit().textSelection(.enabled)
+            }
+        }
     }
-    /// Power-of-two bytes from a 16 MB floor, so the label reads 64 MB, 512 MB, 2 GB…
-    static func memoryCeiling(_ points: [Point]) -> Double {
-        binaryCeiling(points.compactMap(MetricSeries.processMemory.value).max() ?? 0, minimum: 16_777_216)
+}
+
+private struct InspectorProcessInfo: View, Equatable {
+    let monitor: Monitor
+    let parent: Int32
+    let parentName: String?
+    let uid: UInt32
+    let application: String?
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.monitor === b.monitor && a.parent == b.parent && a.parentName == b.parentName && a.uid == b.uid && a.application == b.application
+    }
+    var body: some View {
+        InspectorSection("Process") {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Parent").foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                if let parentName {
+                    Button("\(parentName) (\(String(parent)))") { monitor.selected = parent }
+                        .buttonStyle(.link).lineLimit(1).truncationMode(.middle)
+                        .help("Select the parent process")
+                } else {
+                    Text(String(parent)).monospacedDigit().textSelection(.enabled)
+                }
+            }.font(.body12).frame(minHeight: 20)
+            InspectorUser(uid: uid)
+            if let application { InspectorRow("Application", application) }
+        }
+    }
+}
+
+private struct InspectorUser: View {
+    let uid: UInt32
+    private let names = SwiftUI.State(initialValue: 0)
+    var body: some View {
+        let _ = names.wrappedValue
+        InspectorRow("User", UserNames.resolved(uid).map { "\($0) (\(uid))" } ?? String(uid))
+            .onReceive(NotificationCenter.default.publisher(for: UserNames.didResolve)) { _ in names.wrappedValue &+= 1 }
+    }
+}
+
+private struct InspectorExecutable: View, Equatable {
+    let path: String
+    var body: some View {
+        InspectorSection("Executable") {
+            Text(path).font(.caption11).foregroundStyle(.secondary).textSelection(.enabled)
+                .lineLimit(4).truncationMode(.middle).fixedSize(horizontal: false, vertical: true)
+            Button("Show in Finder") { revealInFinder(path) }.controlSize(.small).padding(.top, 2)
+        }
+    }
+}
+
+private struct InspectorActions: View, Equatable {
+    let monitor: Monitor
+    let current: Bool
+    let pid: Int32
+    let uid: UInt32
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.monitor === b.monitor && a.current == b.current && a.pid == b.pid && a.uid == b.uid
+    }
+    var body: some View {
+        let owned = uid == getuid() && pid != getpid()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button("Quit…") { monitor.requestQuit(force: false) }
+                Button("Force Quit…", role: .destructive) { monitor.requestQuit(force: true) }
+            }
+            // The action rechecks the selected process and its birth identity before terminating it.
+            .disabled(!current || !owned)
+            if !current || !owned {
+                Text(!current ? "Unavailable in the latest sample." : pid == getpid() ? "Taskglass can't quit itself." : "Owned by another user.")
+                    .font(.caption11).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 20).padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { Palette.keyline.frame(height: Metrics.hairline) }
     }
 }
 
