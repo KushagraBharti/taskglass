@@ -201,22 +201,7 @@ actor Sampler {
             defer { tg_free(pointer) }
             result.processes.reserveCapacity(Int(count))
             let rawRows = UnsafeBufferPointer(start: pointer, count: Int(count))
-            var gpuRates: [Int32: Double] = [:], aneRates: [UInt64: Double] = [:]
-            if includeGPU {
-                var clients: UnsafeMutablePointer<TGGPUClient>?, available: Int32 = 0
-                let clientCount = tg_gpu_clients(&clients, &available)
-                let counters = clients.map { buffer in
-                    UnsafeBufferPointer(start: buffer, count: Int(clientCount)).map {
-                        GPUClientCounter(id: $0.entry, pid: $0.pid, nanoseconds: $0.nanoseconds, contexts: $0.contexts)
-                    }
-                } ?? []
-                if let clients { tg_free(clients) }
-                var identities: [Int32: UInt64] = [:]
-                identities.reserveCapacity(rawRows.count)
-                for row in rawRows { identities[row.pid] = row.birth }
-                result.gpuAccountingAvailable = available != 0
-                gpuRates = gpuAccounting.update(counters, births: identities, now: ProcessInfo.processInfo.systemUptime, available: available != 0)
-            } else { gpuAccounting.reset() }
+            var aneRates: [UInt64: Double] = [:]
             if includeANE {
                 tg_ane_process_groups(pointer, count)
                 var counters: [UInt64: UInt64] = [:]
@@ -253,10 +238,22 @@ actor Sampler {
                 }
                 let cpu = old?.birth == p.birth ? cpuPercent(next: p.cpu, previous: old!.cpu, elapsed: processElapsed) : nil
                 result.processes.append(ProcessRow(id: p.pid, parent: p.parent, metadata: metadata, birth: p.birth, cpu: cpu, resident: p.resident, footprint: p.footprint_valid != 0 ? p.footprint : nil, threads: p.threads, uid: p.uid, readRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_read, old!.read)) / processElapsed : nil, writeRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_write, old!.write)) / processElapsed : nil,
-                    gpuTime: gpuRates[p.pid], neuralMemory: p.neural_valid != 0 ? p.neural_footprint : nil,
+                    neuralMemory: p.neural_valid != 0 ? p.neural_footprint : nil,
                     aneGroup: p.ane_group != 0 ? p.ane_group : nil, aneGroupTime: aneRates[p.ane_group]))
                 next[p.pid] = (p.birth, p.cpu, p.disk_read, p.disk_write, metadata, shortName, p.footprint_valid != 0)
             }
+            if includeGPU {
+                var clients: UnsafeMutablePointer<TGGPUClient>?, available: Int32 = 0
+                let clientCount = tg_gpu_clients(&clients, &available)
+                defer { if let clients { tg_free(clients) } }
+                let counters = UnsafeBufferPointer(start: clients, count: Int(clientCount)).lazy.map {
+                    GPUClientCounter(id: $0.entry, pid: $0.pid, nanoseconds: $0.nanoseconds, contexts: $0.contexts)
+                }
+                result.gpuAccountingAvailable = available != 0
+                let rates = gpuAccounting.update(counters, birthForPID: { next[$0]?.birth },
+                    now: ProcessInfo.processInfo.systemUptime, available: available != 0)
+                for index in result.processes.indices { result.processes[index].gpuTime = rates[result.processes[index].id] }
+            } else { gpuAccounting.reset() }
         }
         if pointer == nil { gpuAccounting.reset(); aneAccounting.reset() }
         previous = raw; time = now; processTime = processNow; processes = next

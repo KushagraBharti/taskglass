@@ -81,3 +81,13 @@ Added a typed process sort key, resolved once at arrangement/grouping entry. Pre
 Replaced per-cell Auto Layout constraints with direct frames for the fixed-height text, 16-point icon and 28-point meter. Matched NSTextField alignment insets so text edges remain identical. The six-column raster fixture matched pixel for pixel, including a grouped app title and truncated numeric text. Constructing/layout of 120 cells fell from 9.288 to 5.312 ms; value updates plus alternating column resizes fell from 3.284 to 0.687 ms. This measures cell layout, not overall application CPU.
 
 Grouped title caching now compares the existing title/count directly, avoiding a concatenated cache-key string. Font/color/paragraph attributes are shared. Bar maxima use the first already-sorted row instead of scanning the entire list again. Release build passed after the layout and title-cache changes; final integration checks still remain.
+
+## Pass 7: numeric coalition grouping
+
+Coalition buckets now use their numeric IDs; names and string IDs are formatted once per group. ANE grouping in the frozen fixture fell from 0.697 to 0.492 ms, about 29%. Other rankings were unchanged within 0.2%. Grouped/ungrouped outputs still compare equal.
+
+## Pass 8: borrow GPU identity data
+
+GPU accounting stores birth identity alongside each tracked client instead of retaining a separate map of every accessible process. The sampler borrows its existing fresh process cache and lazily reads the C client buffer, removing the temporary client array and second process-identity dictionary. CPU timestamps and all client/PID/context/reset guards remain intact.
+
+The scoped identity-map/accounting fixture with 2,000 known processes took 0.0369 to 0.0037 ms for 20 clients and 0.0388 to 0.0143 for 100; 500 clients were unchanged. These are small absolute savings and exclude driver scanning. Existing accounting/sampling/lifecycle checks passed. A real six-second Metal workload was attributed to its PID, peaking at 992.57 ms/s; complete sampler averaged 3.37 ms during that workload. Updated the optional accelerator build script for the shared-members source dependency. No global installs.

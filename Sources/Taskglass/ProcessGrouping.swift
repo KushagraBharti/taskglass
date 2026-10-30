@@ -64,36 +64,30 @@ struct ProcessFamily: Equatable {
 /// Executables inside the same outer app bundle share one family, including
 /// nested helper apps. Background processes remain individually identifiable.
 func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [ProcessFamily] {
-    struct Bucket {
-        var name: String
-        var members: [Int] = []
-        mutating func append(_ index: Int, name: String) {
-            self.name = name
-            members.append(index)
-        }
+    enum GroupKey: Hashable {
+        case application(String)
+        case coalition(UInt64)
     }
-    var buckets: [String: Bucket] = [:]
+    struct Bucket {
+        let name: String
+        var members: [Int] = []
+    }
+    var buckets: [GroupKey: Bucket] = [:]
     var individuals: [Int] = []
     individuals.reserveCapacity(rows.count)
     let orderKey = ProcessSortKey(rawValue: key) ?? .memory
     let valueKey = ProcessSortKey(rawValue: key) ?? .cpu
     let byANE = orderKey == .ane
     for (index, row) in rows.enumerated() {
-        let id: String
-        let name: String
         if byANE, let group = row.aneGroup {
-            id = "coalition:\(group)"
-            name = "Resource group \(group)"
+            // Keep the numeric coalition ID while bucketing. Its display text
+            // is needed once per group, not once for every member process.
+            buckets[.coalition(group), default: Bucket(name: "")].members.append(index)
         } else if grouped, let app = row.application {
-            id = app.path
-            name = app.name
+            buckets[.application(app.path), default: Bucket(name: app.name)].members.append(index)
         } else {
             individuals.append(index)
-            continue
         }
-        // Mutate through the dictionary's modify accessor, without copying a
-        // growing member array or maintaining separate title/application maps.
-        buckets[id, default: Bucket(name: name)].append(index, name: name)
     }
     // Reserve the actual output size: ANE grouping can reduce hundreds of
     // processes to a few groups, so row-count capacity would stay mostly unused.
@@ -103,12 +97,17 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         let row = rows[index]
         families.append(ProcessFamily(id: "pid:\(row.id):\(row.birth)", name: row.name, members: ProcessMembers(source: rows, index: index), application: false))
     }
-    for (id, bucket) in buckets {
+    for (groupKey, bucket) in buckets {
         var order = bucket.members
         if order.count > 1 { order.sort { processPrecedes(rows[$0], rows[$1], key: orderKey, ascending: false) } }
         let children = ProcessMembers(source: rows, order: order)
+        let id: String
         var title = bucket.name
-        if byANE && id.hasPrefix("coalition:") {
+        switch groupKey {
+        case .application(let path): id = path
+        case .coalition(let group):
+            id = "coalition:\(group)"
+            title = "Resource group \(group)"
             var apps = Set<String>()
             for row in children {
                 if let name = row.application?.name { apps.insert(name) }
