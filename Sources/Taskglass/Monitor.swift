@@ -25,7 +25,7 @@ import SystemProbe
     @Published var historySeconds = 60.0 { didSet { if [60.0, 180, 600].contains(historySeconds) { preferences.save(historySeconds, for: "historySeconds") } } }
     @Published var overviewProcesses: [ProcessRow] = []
     @Published var resourceSort = "cpu" { didSet {
-        if let pane, pane != .overview, pane != .processes, ["cpu", "memory", "disk", "read", "write"].contains(resourceSort) {
+        if let pane, pane != .overview, pane != .processes, ["cpu", "memory", "gpu", "ane", "neural", "disk", "read", "write"].contains(resourceSort) {
             paneRankings[pane.rawValue] = resourceSort
             preferences.save(paneRankings, for: "paneRankings")
         }
@@ -57,12 +57,20 @@ import SystemProbe
         showResident = preferences.bool("showResident", fallback: false)
         showDisk = preferences.bool("showDisk", fallback: false)
         showUser = preferences.bool("showUser", fallback: false)
+        showGPU = preferences.bool("showGPU", fallback: true)
+        showNeuralMemory = preferences.bool("showNeuralMemory", fallback: true)
         ascending = preferences.bool("ascending", fallback: false)
         let sort = preferences.string("sort", fallback: "memory")
-        self.sort = ["name", "pid", "cpu", "memory", "resident", "threads", "read", "write", "disk", "uid"].contains(sort) ? sort : "memory"
+        self.sort = ["name", "pid", "cpu", "gpu", "neural", "memory", "resident", "threads", "read", "write", "disk", "uid"].contains(sort) ? sort : "memory"
         let sensor = preferences.string("sensorScope", fallback: "All")
         sensorScope = ["All", "CPU", "GPU", "Storage", "Battery", "PMU / other"].contains(sensor) ? sensor : "All"
-        paneRankings = preferences.strings("paneRankings").filter { ResourcePane(rawValue: $0.key) != nil && ["cpu", "memory", "disk", "read", "write"].contains($0.value) }
+        paneRankings = preferences.strings("paneRankings").filter { ResourcePane(rawValue: $0.key) != nil && ["cpu", "memory", "gpu", "ane", "neural", "disk", "read", "write"].contains($0.value) }
+        if preferences.number("acceleratorRankingsVersion", fallback: 0) < 1 {
+            paneRankings["gpu"] = "gpu"
+            paneRankings["neural"] = ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 ? "ane" : "neural"
+            preferences.save(paneRankings, for: "paneRankings")
+            preferences.save(1, for: "acceleratorRankingsVersion")
+        }
     }
     var accessibleProcessCount: Int { resourceSample.count }
     var selectedProcessRecord: ProcessRow? { selection ?? trackedProcess }
@@ -72,12 +80,14 @@ import SystemProbe
         if target == .processes { arrange() }
         else {
             showingInspector = false; rows = []
-            resourceSort = paneRankings[target.rawValue] ?? (target == .memory ? "memory" : target == .storage ? "disk" : "cpu")
+            resourceSort = paneRankings[target.rawValue] ?? (target == .memory ? "memory" : target == .storage ? "disk" : target == .gpu ? "gpu" : target == .neural ? (ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 ? "ane" : "neural") : "cpu")
             rankResources()
         }
     }
     var historyCapacity: Int { min(601, Int(historySeconds / interval) + 1) }
     @Published var showingInspector = false
+    @Published var showGPU = true { didSet { preferences.save(showGPU, for: "showGPU") } }
+    @Published var showNeuralMemory = true { didSet { preferences.save(showNeuralMemory, for: "showNeuralMemory") } }
     @Published var showResident = false { didSet { preferences.save(showResident, for: "showResident") } }
     @Published var showDisk = false { didSet { preferences.save(showDisk, for: "showDisk") } }
     @Published var showUser = false { didSet { preferences.save(showUser, for: "showUser") } }
@@ -101,9 +111,11 @@ import SystemProbe
                     await sampler.reset()
                     needsBaselineReset = false
                 }
-                let collect = page == 0 || [.cpu, .memory, .storage].contains(pane) || overviewTick % 3 == 0
+                let gpu = (page == 0 && (showGPU || sort == "gpu" || showingInspector)) || pane == .gpu || (page != 0 && resourceSort == "gpu")
+                let ane = pane == .neural || (page != 0 && resourceSort == "ane") || (page == 0 && showingInspector)
+                let collect = gpu || ane || page == 0 || [.cpu, .memory, .storage].contains(pane) || overviewTick % 3 == 0
                 overviewTick += 1
-                let next = await sampler.read(includeProcesses: collect, includeHardware: true, includeSensorDetails: pane == .temperatures)
+                let next = await sampler.read(includeProcesses: collect, includeHardware: true, includeSensorDetails: pane == .temperatures, includeGPU: gpu, includeANE: ane)
                 guard !Task.isCancelled else { return }
                 if needsBaselineReset { continue }
                 var points = stagedHistory ?? history
@@ -143,6 +155,7 @@ import SystemProbe
             trackedProcess = row
             selectedSamples.append(Point(cpu: row.cpu ?? .nan, memory: 0, time: time,
                 processMemory: row.footprint.map { Double($0) },
+                processGPUTime: row.gpuTime, processNeuralMemory: row.neuralMemory.map { Double($0) },
                 beginsSegment: changed || next.beginsInterval || (next.sampleDuration ?? 0) > interval * 2.5))
         } else if let last = selectedSamples.last, last.cpu.isFinite || last.processMemory != nil {
             selectedSamples.append(Point(cpu: .nan, memory: 0, time: time, beginsSegment: true))
@@ -176,7 +189,7 @@ import SystemProbe
         else { resourceLeaders = resourceSample }
     }
     func openProcess(_ row: ProcessRow) {
-        search = ""; scope = 0; selected = row.id; sort = resourceSort; ascending = false
+        search = ""; scope = 0; selected = row.id; sort = resourceSort == "ane" ? "neural" : resourceSort; ascending = false
         showingInspector = true; pane = .processes
     }
     func processRecord(_ pid: Int32) -> ProcessRow? { resourceSample.first { $0.id == pid } }

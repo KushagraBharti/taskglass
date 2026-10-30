@@ -14,7 +14,7 @@ The app has no package dependencies, web view, privileged helper, daemon, login 
 - Vector paths and a small AppKit core map replace a charting runtime. There is no continuous animation, Canvas, drawingGroup or external font.
 - Native tables reuse visible cells. Resource outlines use positional slots, with expansion and selection following content identity across re-ranking. Full reloads are reserved for initial display and grouping changes.
 - Group aggregates are calculated once; helpers use their outer app bundle. Overview selects five leaders without sorting a second full array. Resource views sort their shared unsorted source once.
-- Overview and non-CPU/memory/storage resource contexts collect process data every third tick. Process deltas have their own elapsed clock.
+- Overview and resource contexts without an active process-counter source collect process data every third tick. CPU, memory, storage, GPU and Neural Engine views collect on each tick. Process deltas have their own elapsed clock.
 - CPU/GPU temperature summaries, fans, battery and capacity refresh every 10 seconds. Full IOHID sensor polling runs on the Temperatures page or as an SMC fallback. Handles and sensor metadata are reused.
 - CLPC setup constructs only three recognized descriptors instead of enumerating the entire IOReport legend.
 - Covered windows keep bounded history without publishing invisible UI updates. Pause, hide and minimize cancel periodic sampling. Resume/wake reset rate baselines.
@@ -30,7 +30,7 @@ Process quit actions require a current record, the same PID/start identity, and 
 
 SMC is read only. Optional SMC/IOReport ABI handling and CLPC descriptors reference MIT-licensed macmon; revision and license are in [third-party notices](THIRD_PARTY_NOTICES.md). No macmon or powermetrics executable is invoked. Power is experimental and is not ANE utilization or wall power. Unsupported values leave graph gaps.
 
-The six-second Metal workload is a development fixture only. It validates GPU response on the development machine. The ANE channel has not been validated with a controlled Core ML workload. Additional physical M-series/OS coverage, deeper process trees, per-device storage, media engines and per-process GPU/ANE/network attribution remain future work.
+The optional six-second Metal and Core ML fixtures validated real GPU PID attribution, ANE resource-group time and Neural Engine memory on the M5 Pro. Fixtures are not linked into the app and install nothing. Shared ANE counters are never presented as separate per-PID execution totals. Recognized macOS 27 layouts enable ANE accounting; older/unknown layouts remain unavailable. See [accelerator attribution](docs/accelerator-attribution.md). Additional physical M-series/OS coverage, deeper process trees, per-device storage, media engines and per-process network attribution remain future work.
 
 ## Design and verification
 

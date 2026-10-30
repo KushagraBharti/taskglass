@@ -15,12 +15,18 @@ struct ProcessRow: Identifiable, Sendable, Equatable {
     let readRate: Double?
     let writeRate: Double?
     var application: ProcessApplication? = nil
+    var gpuTime: Double? = nil
+    var neuralMemory: UInt64? = nil
+    var aneGroup: UInt64? = nil
+    var aneGroupTime: Double? = nil
 }
 struct Point: Sendable {
     let cpu: Double
     let memory: Double
     var time: Double = ProcessInfo.processInfo.systemUptime
     var processMemory: Double? = nil
+    var processGPUTime: Double? = nil
+    var processNeuralMemory: Double? = nil
     var beginsSegment = false
     var renderer: Double? = nil
     var tiler: Double? = nil
@@ -53,6 +59,8 @@ struct Snapshot: Sendable {
     var received: UInt64 = 0, sent: UInt64 = 0
     var hardware = HardwareMetrics()
     var processes: [ProcessRow] = []
+    var gpuAccountingAvailable: Bool? = nil
+    var aneAccountingAvailable: Bool? = nil
     var total: UInt64 = ProcessInfo.processInfo.physicalMemory
     var used: UInt64 = 0, wired: UInt64 = 0, compressed: UInt64 = 0, cached: UInt64 = 0, swap: UInt64 = 0
     var cpu: Double? = nil, systemCPU: Double = 0, download: Double? = nil, upload: Double? = nil
@@ -76,11 +84,13 @@ actor Sampler {
     private var hardwareActive = false
     private var interfaceCounters: [String: (rx: UInt64, tx: UInt64)] = [:]
     private var processTime: Double?
+    private var gpuAccounting = GPUAccounting()
+    private var aneAccounting = ANEAccounting()
     private var previous: TGSystem?
     private var time: TimeInterval?
     private var processes: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, name: String, path: String?, shortName: String, ioValid: Bool, application: ProcessApplication?)] = [:]
-    func reset() { hardware.reset(); hardwareActive = false; processTime = nil; previous = nil; time = nil; processes.removeAll(keepingCapacity: true) }
-    func read(includeProcesses: Bool = true, includeHardware: Bool? = nil, includeSensorDetails: Bool = true) -> Snapshot {
+    func reset() { gpuAccounting.reset(); aneAccounting.reset(); hardware.reset(); hardwareActive = false; processTime = nil; previous = nil; time = nil; processes.removeAll(keepingCapacity: true) }
+    func read(includeProcesses: Bool = true, includeHardware: Bool? = nil, includeSensorDetails: Bool = true, includeGPU: Bool = false, includeANE: Bool = false) -> Snapshot {
         let now = ProcessInfo.processInfo.systemUptime
         let raw = tg_system()
         let elapsed = time.map { now - $0 } ?? 0
@@ -154,6 +164,27 @@ actor Sampler {
         if let pointer {
             defer { tg_free(pointer) }
             result.processes.reserveCapacity(Int(count))
+            let rawRows = UnsafeBufferPointer(start: pointer, count: Int(count))
+            var gpuRates: [Int32: Double] = [:], aneRates: [UInt64: Double] = [:]
+            if includeGPU {
+                var clients: UnsafeMutablePointer<TGGPUClient>?, available: Int32 = 0
+                let clientCount = tg_gpu_clients(&clients, &available)
+                let counters = clients.map { buffer in
+                    UnsafeBufferPointer(start: buffer, count: Int(clientCount)).map {
+                        GPUClientCounter(id: $0.entry, pid: $0.pid, nanoseconds: $0.nanoseconds, contexts: $0.contexts)
+                    }
+                } ?? []
+                if let clients { tg_free(clients) }
+                let identities = Dictionary(rawRows.map { ($0.pid, $0.birth) }, uniquingKeysWith: { _, next in next })
+                result.gpuAccountingAvailable = available != 0
+                gpuRates = gpuAccounting.update(counters, births: identities, now: ProcessInfo.processInfo.systemUptime, available: available != 0)
+            } else { gpuAccounting.reset() }
+            if includeANE {
+                tg_ane_process_groups(pointer, count)
+                let counters = Dictionary(rawRows.filter { $0.ane_valid != 0 }.map { ($0.ane_group, $0.ane_nanoseconds) }, uniquingKeysWith: { first, _ in first })
+                result.aneAccountingAvailable = !counters.isEmpty
+                aneRates = aneAccounting.update(counters, now: ProcessInfo.processInfo.systemUptime)
+            } else { aneAccounting.reset() }
             for index in 0..<Int(count) {
                 var p = pointer[index]
                 let shortName = withUnsafePointer(to: &p.name) { $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) } }
@@ -169,10 +200,13 @@ actor Sampler {
                     application = processApplication(path)
                 }
                 let cpu = old?.birth == p.birth ? cpuPercent(next: p.cpu, previous: old!.cpu, elapsed: processElapsed) : nil
-                result.processes.append(ProcessRow(id: p.pid, parent: p.parent, path: path, birth: p.birth, name: name, cpu: cpu, resident: p.resident, footprint: p.footprint_valid != 0 ? p.footprint : nil, threads: p.threads, uid: p.uid, readRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_read, old!.read)) / processElapsed : nil, writeRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_write, old!.write)) / processElapsed : nil, application: application))
+                result.processes.append(ProcessRow(id: p.pid, parent: p.parent, path: path, birth: p.birth, name: name, cpu: cpu, resident: p.resident, footprint: p.footprint_valid != 0 ? p.footprint : nil, threads: p.threads, uid: p.uid, readRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_read, old!.read)) / processElapsed : nil, writeRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_write, old!.write)) / processElapsed : nil, application: application,
+                    gpuTime: gpuRates[p.pid], neuralMemory: p.neural_valid != 0 ? p.neural_footprint : nil,
+                    aneGroup: p.ane_group != 0 ? p.ane_group : nil, aneGroupTime: aneRates[p.ane_group]))
                 next[p.pid] = (p.birth, p.cpu, p.disk_read, p.disk_write, name, path, shortName, p.footprint_valid != 0, application)
             }
         }
+        if pointer == nil { gpuAccounting.reset(); aneAccounting.reset() }
         previous = raw; time = now; processTime = processNow; processes = next
         return result
     }

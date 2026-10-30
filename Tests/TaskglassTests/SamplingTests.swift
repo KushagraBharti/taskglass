@@ -3,6 +3,7 @@ import SystemProbe
 
 @main struct SamplingTests {
     static func main() async {
+        testAcceleratorAccounting()
         precondition(cpuPercent(next: 5_000_000_000, previous: 1_000_000_000, elapsed: 2) == 200)
         precondition(cpuPercent(next: 1, previous: 2, elapsed: 1) == nil)
         precondition(cpuPercent(next: 2, previous: 1, elapsed: 0) == nil)

@@ -57,6 +57,18 @@ struct ProcessInspector: View {
                         InspectorRow("Memory", row.footprint.map(bytes) ?? "Not readable", help: TableKit.footprintHelp)
                         ProcessTrend(points: points, series: .processMemory, tint: Palette.memory, unit: .bytes,
                                      ceiling: Self.memoryCeiling(points), window: trendWindow, label: "\(row.name) memory")
+                        InspectorRow("GPU time", acceleratorTime(row.gpuTime), help: TableKit.gpuHelp)
+                        ProcessTrend(points: points, series: .processGPUTime, tint: Palette.gpu, unit: .millisecondsPerSecond,
+                                     ceiling: niceCeiling(points.compactMap(MetricSeries.processGPUTime.value).max() ?? 0, minimum: 10), window: trendWindow, label: "\(row.name) GPU time")
+                        InspectorRow("Neural memory", row.neuralMemory.map(bytes) ?? "Not readable", help: TableKit.neuralHelp)
+                        ProcessTrend(points: points, series: .processNeuralMemory, tint: Palette.neural, unit: .bytes,
+                                     ceiling: binaryCeiling(points.compactMap(MetricSeries.processNeuralMemory.value).max() ?? 0, minimum: 1_048_576), window: trendWindow, label: "\(row.name) Neural Engine memory")
+                        InspectorRow("ANE group time", acceleratorTime(row.aneGroupTime), help: TableKit.aneHelp)
+                        if let group = row.aneGroup {
+                            InspectorRow("Resource group", String(group))
+                            Text("Shared with the group's other processes. Individual PID execution time is not available.")
+                                .font(.caption11).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
                         InspectorRow("Resident", bytes(row.resident), help: "Includes pages shared with other processes")
                         InspectorRow("Threads", String(row.threads))
                         InspectorRow("Disk read", readable ? row.readRate.map { rate($0) } ?? pending : "Not readable", help: TableKit.diskHelp)
@@ -185,7 +197,7 @@ struct MeasurementNotes: View {
         ("CPU", "Utilization uses the difference between kernel counters at each sample. System CPU is normalized to 100%. Process CPU reaches 100% per core and can exceed 100%."),
         ("Memory", "Process memory is the physical footprint when macOS allows access; a dash means access was denied. Resident memory may include shared pages. System used memory is internal pages minus purgeable pages, plus wired and compressed memory. Application totals add up their processes, so shared memory can be counted more than once."),
         ("Disk and network", "Disk rates use physical block-storage counters; reads served from the file cache are not disk I/O. Network rates add up active physical interfaces, including local traffic."),
-        ("GPU, Neural Engine and power", "GPU utilization comes from whole-GPU AGX driver counters. CPU, GPU and Neural Engine power comes from experimental CLPC counters on supported drivers. Watts are not utilization, and chip power is not total system power. Per-process GPU, Neural Engine and network use is not measured."),
+        ("GPU, Neural Engine and power", "GPU utilization comes from whole-GPU AGX driver counters. CPU, GPU and Neural Engine power comes from experimental CLPC counters on supported drivers. Watts are not utilization, and chip power is not total system power. Process GPU time comes from stable AGX client counters in ms/s, not occupancy percent. Neural Engine time is shared OS resource-group time on recognized macOS 27 layouts. Neural memory is a per-process allocation, not compute activity. Per-process network use is not measured."),
         ("Sensors", "CPU and GPU temperature groups are inferred from SMC key prefixes. Temperatures and fans are read only and refresh every 10 seconds. The full sensor list is read only while Temperatures is open."),
         ("Battery", "Time remaining is macOS's average time-to-empty estimate, reported only while the Mac runs on battery. No time-to-full estimate is shown or computed."),
         ("Sampling and privacy", "Sampling pauses while the window is minimized, hidden or paused. A covered window keeps sampling but doesn't redraw until it is visible again. History, including the selected process's last 3 minutes, stays in memory only. View settings such as the update interval, history window, grouping, columns and rankings are saved; process names, selections, searches and measurements are never saved or sent anywhere.")

@@ -7,6 +7,9 @@ func processPrecedes(_ a: ProcessRow, _ b: ProcessRow, key: String, ascending: B
         let order = a.name.localizedStandardCompare(b.name)
         comparison = order == .orderedSame ? a.id < b.id : order == .orderedAscending
     case "pid": comparison = a.id < b.id
+    case "gpu", "ane", "neural":
+        func value(_ p: ProcessRow) -> Double { key == "gpu" ? p.gpuTime ?? -1 : key == "ane" ? p.aneGroupTime ?? -1 : p.neuralMemory.map(Double.init) ?? -1 }
+        comparison = value(a) == value(b) ? a.id < b.id : value(a) < value(b)
     case "cpu": comparison = (a.cpu ?? -1) == (b.cpu ?? -1) ? a.id < b.id : (a.cpu ?? -1) < (b.cpu ?? -1)
     case "uid": comparison = a.uid == b.uid ? a.id < b.id : a.uid < b.uid
     case "disk":
@@ -27,6 +30,9 @@ func processPrecedes(_ a: ProcessRow, _ b: ProcessRow, key: String, ascending: B
 func rankedProcesses(_ rows: [ProcessRow], key: String, limit: Int) -> [ProcessRow] {
     let measured = rows.filter {
         switch key {
+        case "gpu": return $0.gpuTime != nil
+        case "ane": return $0.aneGroupTime != nil
+        case "neural": return $0.neuralMemory != nil
         case "cpu": return $0.cpu != nil
         case "read": return $0.readRate != nil
         case "write": return $0.writeRate != nil

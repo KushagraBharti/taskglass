@@ -104,8 +104,16 @@ int tg_processes(TGProcess **output) {
   r->cpu=(uint64_t)(((__uint128_t)info.ptinfo.pti_total_user+info.ptinfo.pti_total_system)*tg_timebase.numer/tg_timebase.denom);
   r->resident=info.ptinfo.pti_resident_size; r->threads=info.ptinfo.pti_threadnum;
   strlcpy(r->name,info.pbsd.pbi_name[0]?info.pbsd.pbi_name:info.pbsd.pbi_comm,sizeof(r->name));
-  struct rusage_info_v2 usage={0};
-  if(proc_pid_rusage(r->pid,RUSAGE_INFO_V2,(rusage_info_t *)&usage)==0) {r->footprint=usage.ri_phys_footprint;r->disk_read=usage.ri_diskio_bytesread;r->disk_write=usage.ri_diskio_byteswritten;r->footprint_valid=1;}
+  // v6 is extensible; use ample aligned storage so old SDKs can build the
+  // same binary. Only macOS 27's verified neural field is decoded, at byte 368.
+  union { uint64_t words[128]; struct rusage_info_v2 prefix; } usage={0};
+  if(proc_pid_rusage(r->pid,6,(rusage_info_t *)&usage)==0) {
+   r->footprint=usage.prefix.ri_phys_footprint;r->disk_read=usage.prefix.ri_diskio_bytesread;r->disk_write=usage.prefix.ri_diskio_byteswritten;r->footprint_valid=1;
+   if(tg_ane_accounting_supported()) {r->neural_footprint=usage.words[46];r->neural_valid=1;}
+  } else {
+   struct rusage_info_v2 fallback={0};
+   if(proc_pid_rusage(r->pid,RUSAGE_INFO_V2,(rusage_info_t *)&fallback)==0) {r->footprint=fallback.ri_phys_footprint;r->disk_read=fallback.ri_diskio_bytesread;r->disk_write=fallback.ri_diskio_byteswritten;r->footprint_valid=1;}
+  }
  }
  free(pids); *output=rows; return used;
 }
