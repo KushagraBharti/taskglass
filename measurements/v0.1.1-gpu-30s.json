@@ -1,0 +1,25 @@
+{
+  "label": "v0.1.1 GPU page, 2s cadence, M5 Pro macOS27 local SDK27 build",
+  "duration_seconds": 30.13,
+  "cpu_timebase_numer": 125,
+  "cpu_timebase_denom": 3,
+  "cpu_percent_one_core": 2.023,
+  "footprint_mib_median": 114.2,
+  "footprint_mib_peak": 131.45,
+  "footprint_mib_first": 113.22,
+  "footprint_mib_last": 126.17,
+  "rss_mib_median": 206.94,
+  "interrupt_wakeups_per_second": 2.32,
+  "window_seconds": {
+    "exposed": 30.13,
+    "covered": 0.0,
+    "unknown": 0.0
+  },
+  "sample_events": 15,
+  "observed_panes": [
+    "gpu"
+  ],
+  "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled.",
+  "source_commit": "8e2249b5af2ddb281b58a7514357b201ddf3f1e0",
+  "binary_origin": "Local stripped -Osize build using SDK 27, not the CI SDK 26 release binary"
+}

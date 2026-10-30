@@ -17,7 +17,17 @@ int main(void) {
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 270000
  _Static_assert(offsetof(struct rusage_info_v6,ri_neural_footprint)==368,"Review neural memory ABI");
 #endif
+ for(int scan=0;scan<3;scan++) {
+  TGGPUClient *clients=NULL;int available=0;
+  int count=tg_gpu_clients(&clients,&available);
+  assert(count>=0 && count<=4096 && (available==0 || available==1));
+  for(int i=0;i<count;i++) {
+   assert(clients[i].pid>0 && clients[i].entry!=0 && clients[i].contexts<=4096);
+   for(int j=0;j<i;j++)assert(clients[i].entry!=clients[j].entry);
+  }
+  free(clients);
+ }
  TGProcess process={0};process.pid=getpid();tg_ane_process_groups(&process,1);
  if(!tg_ane_accounting_supported())assert(!process.ane_valid && !process.ane_group);
- puts("PASS: recognized and rejected ANE layouts, Mach time units, zero, overflow and platform fallback");
+ puts("PASS: recognized and rejected ANE layouts, Mach time units, zero, overflow, live GPU scan ownership and platform fallback");
 }

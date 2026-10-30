@@ -64,7 +64,7 @@ int tg_gpu_clients(TGGPUClient **output, int *available) {
   IOObjectRelease(children);IOObjectRelease(parent);
  }
  IOObjectRelease(accelerators);
- *available=found && complete;*output=rows;return count;
+ *available=found && complete && count>0;*output=rows;return count;
 }
 
 // macOS 27 coalition ABI, checked against Apple's XNU mach/coalition.h and

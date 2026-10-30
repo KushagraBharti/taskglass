@@ -60,3 +60,9 @@ The final `-Osize` regression run passed with a 99.87% busy-thread fixture, 2.47
 `release-overview-final-60s.json` records the final local source at commit 973790c, after the paused-navigation fix and tools-version compatibility change, before the final sidebar-only contrast correction. The JSON includes the source digest, binary digest and compiler configuration. The window was exposed for all 60.22 s, with Overview selected and 29 sample events. There were no agent UI actions during collection; other workloads and user activity were uncontrolled.
 
 CPU averaged 2.36% of one core. Median physical footprint was 161.45 MiB, peak 179.47 MiB, and the run ended at 91.53 MiB. Median RSS was 164.47 MiB; interrupt wakeups averaged 2.74/s. The decline during this short run illustrates why a single launch screenshot is not a steady-state memory claim. These are local SDK 27 measurements, not measurements of the CI-built SDK 26 download, and do not establish being the lightest monitor.
+
+## Accelerator attribution
+
+A 30.13-second local run of the v0.1.1 GPU page, fully exposed with 15 samples at the default two-second cadence, measured 2.023% of one core, 114.20 MiB median physical footprint and 131.45 MiB peak. See v0.1.1-gpu-30s.json for the exact source revision, SDK, exposure and RSS. Footprint ended at 126.17 MiB, so this short run does not establish a long-term plateau or a controlled speedup over earlier versions.
+
+Real six-second Metal and Core ML fixtures verified accelerator attribution on the development M5 Pro. Full sampler reads with the accelerator path enabled averaged roughly 4–6 ms while those workloads ran. These times include process enumeration but exclude UI drawing. The fixtures and compatibility limits are documented in [accelerator attribution](../docs/accelerator-attribution.md).
