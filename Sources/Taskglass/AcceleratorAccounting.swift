@@ -60,11 +60,14 @@ struct ANEAccounting {
         let elapsed = time.map { now - $0 }
         defer { previous = current; time = now.isFinite ? now : nil }
         guard now.isFinite, let elapsed, elapsed > 0 else { return [:] }
-        return current.reduce(into: [:]) { rates, item in
-            guard let old = previous[item.key], item.value >= old else { return }
+        var rates: [UInt64: Double] = [:]
+        rates.reserveCapacity(current.count)
+        for item in current {
+            guard let old = previous[item.key], item.value >= old else { continue }
             let rate = Double(item.value - old) / elapsed / 1_000_000
             if rate.isFinite { rates[item.key] = rate }
         }
+        return rates
     }
 }
 

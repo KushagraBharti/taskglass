@@ -215,3 +215,7 @@ Formatting writes into a bounded temporary stack buffer, then creates the final 
 ## Pass 34: core-history text reuse
 
 Core-history rows cache fixed labels and unchanged numeric strings/sizes. The small cache lives with each native heatmap and rebuilds on prefix/count changes. Full draw including text, geometry and 2x raster improved 1.535 to 1.375 ms with mostly idle cores, and 1.535 to 1.439 with every core changing. Exact pixels matched at 1x/2x, missing/nonfinite values, changed topology and resizing.
+
+## Pass 33: reserve Neural Engine result capacity
+
+ANE rate construction reserves capacity from the known group count before inserting readable rates. The 30-group fixture improved 1.65 to 0.70 microseconds, 100 groups 5.44 to 2.16, and 500 groups 24.78 to 11.30. Counter, timing and reset logic is unchanged. The GPU dictionary-filter replacement showed no meaningful gain at ordinary client counts and was rejected. The initial GPU comparison used exact floating-point sums despite dictionary iteration order; corrected the experiment to require identical keys and a 1e-12 relative tolerance.
