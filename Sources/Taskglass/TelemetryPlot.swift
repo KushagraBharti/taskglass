@@ -11,10 +11,11 @@ struct PlotLayer: Identifiable {
 }
 
 enum PlotUnit {
-    case percent, rate, bytes, power, celsius
+    case percent, rate, bytes, power, celsius, millisecondsPerSecond
     /// Axis labels: round values without trailing ".0", binary units for byte amounts and rates.
     func axis(_ value: Double) -> String {
         switch self {
+        case .millisecondsPerSecond: return trimmed(value) + " ms/s"
         case .percent: return "\(Int(value.rounded()))%"
         case .rate: return value <= 0 ? "0" : axisBytes(value) + "/s"
         case .bytes: return value <= 0 ? "0" : axisBytes(value)

@@ -4,6 +4,7 @@
 typedef struct {
  int32_t pid, parent; uint32_t uid; uint64_t birth, cpu, resident, footprint, disk_read, disk_write;
  uint32_t threads; int footprint_valid; char name[64];
+ uint64_t neural_footprint, ane_group, ane_nanoseconds; int neural_valid, ane_valid;
 } TGProcess;
 typedef struct { char name[16]; uint64_t received, sent; } TGInterface;
 typedef struct {
@@ -17,6 +18,14 @@ typedef struct {
 TGSystem tg_system(void);
 int tg_processes(TGProcess **output);
 void tg_free(void *pointer);
+
+typedef struct {
+ uint64_t entry, nanoseconds, last_submitted_ns; int32_t pid; uint32_t contexts;
+} TGGPUClient;
+int tg_gpu_clients(TGGPUClient **output, int *available);
+int tg_ane_accounting_supported(void);
+void tg_ane_process_groups(TGProcess *rows, int count);
+
 
 int tg_path(int pid, char *buffer, int size);
 

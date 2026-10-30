@@ -12,6 +12,8 @@ struct ProcessTable: NSViewRepresentable {
             .init(key: "pid", title: "PID", width: 64, minWidth: 52),
             .init(key: "cpu", title: "CPU", width: 96, minWidth: 88, help: TableKit.cpuHelp),
             .init(key: "memory", title: "Memory", width: 104, minWidth: 94, help: TableKit.footprintHelp),
+            .init(key: "gpu", title: "GPU time", width: 128, minWidth: 116, help: TableKit.gpuHelp),
+            .init(key: "neural", title: "Neural memory", width: 128, minWidth: 116, help: TableKit.neuralHelp),
             .init(key: "resident", title: "Resident", width: 92, minWidth: 80, help: "Resident memory. Includes pages shared with other processes."),
             .init(key: "threads", title: "Threads", width: 72, minWidth: 60),
             .init(key: "read", title: "Read/s", width: 104, minWidth: 92, help: TableKit.diskHelp),
@@ -38,6 +40,8 @@ struct ProcessTable: NSViewRepresentable {
         for column in table.tableColumns {
             let hidden: Bool
             switch column.identifier.rawValue {
+            case "gpu": hidden = !monitor.showGPU
+            case "neural": hidden = !monitor.showNeuralMemory
             case "resident": hidden = !monitor.showResident
             case "read", "write": hidden = !monitor.showDisk
             case "uid": hidden = !monitor.showUser
@@ -45,6 +49,7 @@ struct ProcessTable: NSViewRepresentable {
             }
             if column.isHidden != hidden { column.isHidden = hidden; columnsChanged = true }
         }
+        if columnsChanged { TableKit.fitVisibleColumns(table) }
         let sortChanged = c.sortKey != monitor.sort || c.ascending != monitor.ascending
         guard c.rows != monitor.rows || sortChanged || columnsChanged || c.selected != monitor.selected else { return }
         c.updating = true
@@ -94,6 +99,8 @@ struct ProcessTable: NSViewRepresentable {
         /// Bars appear in the CPU or Memory column while the list is ranked by it, relative to the largest row.
         func barValue(_ p: ProcessRow) -> Double? {
             switch sortKey {
+            case "gpu": p.gpuTime
+            case "neural": p.neuralMemory.map { Double($0) }
             case "cpu": p.cpu
             case "memory": p.footprint.map { Double($0) }
             default: nil
@@ -110,6 +117,8 @@ struct ProcessTable: NSViewRepresentable {
             case "pid": cell.show(String(p.id), quiet: true)
             case "cpu": cell.show(percent(p.cpu), quiet: (p.cpu ?? 1) < 0.05)
             case "memory": cell.show(p.footprint.map(bytes) ?? "—")
+            case "gpu": cell.show(acceleratorTime(p.gpuTime), quiet: p.gpuTime == 0)
+            case "neural": cell.show(p.neuralMemory.map(bytes) ?? "—", quiet: p.neuralMemory == 0)
             case "resident": cell.show(bytes(p.resident))
             case "threads": cell.show(String(p.threads))
             case "read": cell.show(rate(p.readRate), quiet: p.readRate == 0)
@@ -117,7 +126,7 @@ struct ProcessTable: NSViewRepresentable {
             default: cell.show(UserNames.name(p.uid), quiet: true)
             }
             let ranked = key == sortKey && !ascending && maximum > 0
-            cell.setBar(ranked ? barValue(p).map { $0 / maximum } : nil, tint: key == "memory" ? Palette.memoryNS : Palette.cpuNS)
+            cell.setBar(ranked ? barValue(p).map { $0 / maximum } : nil, tint: key == "gpu" ? Palette.gpuNS : key == "neural" ? Palette.neuralNS : key == "memory" ? Palette.memoryNS : Palette.cpuNS)
         }
 
         /// An account name arrived from the background lookup: replace the UID in visible User cells only.

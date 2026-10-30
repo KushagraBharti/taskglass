@@ -45,11 +45,11 @@ No third-party packages are installed. Build caches and generated output stay un
 
 - Overview: resource graphs, temperature histories, fans, battery, component power, CPU core tiles, GPU engine activity and process leaders.
 - Processes: native table, search, sorting, app/user filters, optional columns, an inspector, executable reveal, quit and force quit. Process identity is rechecked before termination.
-- Resource pages include a native scrollable process outline with CPU, memory, combined disk I/O, read and write rankings, relative bars and double-click inspection. Every accessible process is included by default, with expandable app/helper groups and a flat-list option. CPU/RAM/Storage select their matching ranking automatically. GPU/ANE/network attribution is explicitly unavailable; their tables show the chosen measured resource instead.
+- Resource pages include a native scrollable process outline with CPU, memory, combined disk I/O, read and write rankings, relative bars and double-click inspection. Every accessible process is included by default, with expandable app/helper groups and a flat-list option. CPU/RAM/Storage select their matching ranking automatically. GPU selects measured process GPU time; Neural Engine selects shared OS resource-group time on macOS 27, with per-process Neural Engine memory as a separate ranking. Network traffic remains unattributed.
 - CPU: total/system history and per-core history grouped using device-tree identity. The M5 Pro reports Super and Performance groups rather than an assumed P/E layout.
 - Memory: unified-memory history and allocation, app/wired/compressed/cached values, pressure and swap.
-- GPU: driver-reported device, renderer and tiler utilization, shared memory and experimental power.
-- Neural Engine: experimental power in watts or milliwatts, never an invented utilization percentage.
+- GPU: driver-reported device, renderer and tiler utilization, shared memory, experimental power, and per-process GPU execution time in ms/s.
+- Neural Engine: shared OS resource-group execution time and per-process allocated memory on recognized macOS 27 layouts, plus experimental power where available. No invented utilization percentage.
 - Storage: physical disk rates, read/write IOPS, and APFS Data-volume capacity.
 - Network: total traffic and per-interface rates for active physical interfaces.
 - Battery: charge, charging state, signed power, cycles, full/design capacity ratio, temperature and voltage.
@@ -68,6 +68,8 @@ The app uses a black appearance, distinct resource colors and native navigation.
 | System memory | Mach VM counters | Internal minus purgeable, plus wired and compressed memory. Cached files are external plus purgeable pages. |
 | Memory pressure | Kernel pressure level | Not inferred from free-memory percentage. |
 | GPU | AGX PerformanceStatistics | Device/renderer/tiler counters and unified-memory allocations. No per-core GPU usage is fabricated. |
+| Process GPU time | AGX user-client AppUsage counters | Observed execution ms/s per PID, with stable client and process identity guards. Driver-dependent. |
+| ANE group time / memory | Kernel coalition accounting / rusage v6 | Recognized macOS 27 layouts only. Group time counted once; allocated memory belongs to individual processes. |
 | CPU/GPU/ANE power | Optional IOReport CLPC channels | Undocumented, experimental and version-specific. Currently enabled for recognized M5 Pro/Max CLPC drivers on macOS 27. Unsupported sources show unavailable. |
 | Disk rates/IOPS | IOBlockStorageDriver counters | Aggregate physical block-driver activity. Cached file access can avoid disk. Driver changes reset the rate baseline. |
 | Capacity | statfs on the Data volume | APFS volume/container accounting, not a partition-by-partition hardware inventory. |
@@ -77,7 +79,7 @@ The app uses a black appearance, distinct resource colors and native navigation.
 | Battery | IOKit battery/pack data | Capacity ratio is full/design capacity and may differ from Apple's health estimate. Driver time estimates vary with load. |
 | Chip power total | CPU + GPU + ANE counters | Only the measured components. It is not total system or wall power. |
 
-Neural Engine power is not utilization. A zero from a readable counter is preserved; an unavailable counter is not drawn as zero. Media-engine utilization and per-process GPU/ANE attribution are not implemented. Temperature grouping and private power APIs need validation on additional machines and OS versions.
+Neural Engine power is not utilization. A zero from a readable counter is preserved; an unavailable counter is not drawn as zero. GPU time is observed client execution duration, not device utilization. ANE time is shared by OS resource groups and counted once per group; it cannot identify the submitting PID within that group. Neural memory is allocation, not compute activity. ANE time and Neural Engine memory currently require recognized macOS 27 layouts; older systems show unavailable. Media-engine utilization is not implemented. See [accelerator attribution](docs/accelerator-attribution.md) for sources, validation and limitations. Temperature grouping and private power APIs need validation on additional machines and OS versions.
 
 Processes denied by macOS are omitted and described as accessible processes. New processes require a second read before rates can be calculated. Process leaders in Overview refresh every third sample using their own elapsed interval. CPU/GPU temperature groups, fans, battery and capacity refresh every 10 seconds; ordinary counters follow the 1/2/5-second setting. The full raw IOHID sensor list is read while Temperatures is selected, with an immediate full read on entry. IOHID remains a fallback for missing SMC groups on other panes.
 
@@ -95,6 +97,8 @@ System history stays in memory, bounded to 1, 3 or 10 minutes and at most 601 sa
 pgrep -fl '/Taskglass.app/Contents/MacOS/Taskglass'
 python3 scripts/measure.py <PID> --seconds 60
 ```
+
+Run `./scripts/check-accelerators.sh` for real per-PID GPU validation, or add `--neural` on macOS 27 to validate ANE attribution with a small locally generated Core ML model. Nothing is installed.
 
 The optional GPU check runs a bounded six-second Metal workload, then exits. It is a development fixture, not an app dependency. Test and profiling output stays under the project. See [measurements](measurements/README.md) for recorded resource costs and their limits.
 

@@ -24,6 +24,9 @@ struct ResourceProcessTable: NSViewRepresentable {
             .init(key: "pid", title: "PID", width: 64, minWidth: 52, sortable: false),
             .init(key: "cpu", title: "CPU", width: 96, minWidth: 88, sortable: false, help: TableKit.cpuHelp + " Click to rank by CPU."),
             .init(key: "memory", title: "Memory", width: 104, minWidth: 94, sortable: false, help: TableKit.memoryHelp + " Click to rank by memory."),
+            .init(key: "gpu", title: "GPU time", width: 128, minWidth: 116, sortable: false, help: TableKit.gpuHelp),
+            .init(key: "ane", title: "ANE group time", width: 144, minWidth: 132, sortable: false, help: TableKit.aneHelp),
+            .init(key: "neural", title: "Neural memory", width: 128, minWidth: 116, sortable: false, help: TableKit.neuralHelp),
             .init(key: "read", title: "Read/s", width: 108, minWidth: 96, sortable: false, help: TableKit.diskHelp + " Click to rank by disk reads."),
             .init(key: "write", title: "Write/s", width: 108, minWidth: 96, sortable: false, help: TableKit.diskHelp + " Click to rank by disk writes."),
             .init(key: "disk", title: "Total I/O", width: 108, minWidth: 96, sortable: false, help: TableKit.diskHelp)
@@ -66,12 +69,18 @@ struct ResourceProcessTable: NSViewRepresentable {
         /// Identity of what the slot currently shows: the app bundle path, or the process's PID and start time.
         var contentID: String { family?.id ?? process.map { "pid:\($0.id):\($0.birth)" } ?? "" }
         var expandable: Bool { family != nil }
+        var gpu: Double? { process?.gpuTime ?? family?.gpu }
+        var neural: UInt64? { process?.neuralMemory ?? family?.neuralMemory }
+        var ane: Double? { isChild ? nil : family?.ane }
         var cpu: Double? { process?.cpu ?? family?.cpu }
         var memory: UInt64? { process?.footprint ?? family?.memory }
         var read: Double? { process?.readRate ?? family?.read }
         var write: Double? { process?.writeRate ?? family?.write }
         func value(_ key: String) -> Double? {
             switch key {
+            case "gpu": gpu
+            case "ane": ane
+            case "neural": neural.map { Double($0) }
             case "cpu": cpu
             case "memory": memory.map { Double($0) }
             case "read": read
@@ -121,7 +130,7 @@ struct ResourceProcessTable: NSViewRepresentable {
 
         func update() {
             guard let table else { return }
-            let rows = monitor.resourceLeaders, key = monitor.resourceSort, grouped = monitor.resourceGrouped
+            let rows = monitor.resourceLeaders, key = monitor.resourceSort, grouped = monitor.resourceSort == "ane" || monitor.resourceGrouped
             guard rows != previous || key != previousKey || grouped != previousGrouped else { return }
             updating = true
             defer { updating = false }
@@ -135,7 +144,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             // Expansion is remembered across re-ranks and brief absences, but not for every app ever opened.
             if expandedIDs.count > 64 { expandedIDs.formIntersection(roots.map(\.contentID)) }
 
-            if needsReload || grouped != previousGrouped {
+            if needsReload || grouped != previousGrouped || (key == "ane") != (previousKey == "ane") {
                 // Grouping changes every row's shape; one reload, then expansion follows identity.
                 table.reloadData()
                 for slot in roots {
@@ -164,9 +173,22 @@ struct ResourceProcessTable: NSViewRepresentable {
                 }
             }
             delivered = roots.map { ($0.expandable, $0.children.count) }
-            if let disk = table.tableColumns.first(where: { $0.identifier.rawValue == "disk" }), disk.isHidden != (key != "disk") {
-                disk.isHidden = key != "disk"
+            var columnsChanged = false
+            for column in table.tableColumns {
+                let columnKey = column.identifier.rawValue
+                let acceleratorPane = monitor.pane == .gpu || monitor.pane == .neural
+                let hidden: Bool
+                switch columnKey {
+                case "gpu": hidden = monitor.pane != .gpu && key != "gpu"
+                case "ane": hidden = key != "ane"
+                case "neural": hidden = monitor.pane != .neural && key != "neural"
+                case "disk": hidden = key != "disk"
+                case "read", "write": hidden = acceleratorPane && key != columnKey && key != "disk"
+                default: continue
+                }
+                if column.isHidden != hidden { column.isHidden = hidden; columnsChanged = true }
             }
+            if columnsChanged { TableKit.fitVisibleColumns(table) }
             if key != previousKey { markRanking(key) }
             restoreSelection()
             previous = rows; previousKey = key; previousGrouped = grouped
@@ -265,7 +287,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             case "name":
                 if slot.family != nil {
                     cell.showGroup(slot.title, count: slot.children.count)
-                    cell.setIcon(slot.family.map { ProcessIcons.icon(forBundle: $0.id) })
+                    cell.setIcon(slot.family.flatMap { family in family.iconPath.map { ProcessIcons.icon(forBundle: $0) } ?? family.members.first.map(ProcessIcons.icon(for:)) })
                 } else {
                     cell.show(slot.title)
                     // Helpers sit under their application's icon; repeating it on each would be noise.
@@ -280,6 +302,9 @@ struct ResourceProcessTable: NSViewRepresentable {
                 // A group has no PID; a blank cell, not a dash, since nothing is missing.
                 cell.show(slot.process.map { String($0.id) } ?? "", quiet: true)
             case "cpu": cell.show(percent(slot.cpu), quiet: (slot.cpu ?? 1) < 0.05)
+            case "gpu": cell.show(acceleratorTime(slot.gpu), quiet: slot.gpu == 0)
+            case "ane": cell.show(slot.isChild ? "group" : acceleratorTime(slot.ane), quiet: slot.isChild || slot.ane == 0)
+            case "neural": cell.show(slot.neural.map(bytes) ?? "—", quiet: slot.neural == 0)
             case "memory": cell.show(slot.memory.map(bytes) ?? "—")
             case "read": cell.show(rate(slot.read), quiet: slot.read == 0)
             case "write": cell.show(rate(slot.write), quiet: slot.write == 0)
@@ -289,7 +314,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             cell.setBar(ranked ? slot.value(key).map { $0 / maximum } : nil, tint: tint(key))
         }
         func tint(_ key: String) -> NSColor {
-            key == "memory" ? Palette.memoryNS : key == "cpu" ? Palette.cpuNS : Palette.storageNS
+            key == "gpu" ? Palette.gpuNS : ["ane", "neural"].contains(key) ? Palette.neuralNS : key == "memory" ? Palette.memoryNS : key == "cpu" ? Palette.cpuNS : Palette.storageNS
         }
 
         /// A measurement header ranks by that column, the same as the Rank by menu (and remembered per page).
@@ -320,7 +345,7 @@ struct ResourceProcessTable: NSViewRepresentable {
                 if let path = process.path { menu.addItem("Show in Finder", target: self, action: #selector(reveal(_:)), represented: path) }
             } else if let family = slot.family {
                 menu.addItem(table.isItemExpanded(slot) ? "Collapse" : "Expand", target: self, action: #selector(toggle(_:)), represented: slot)
-                menu.addItem("Show in Finder", target: self, action: #selector(reveal(_:)), represented: family.id)
+                if let path = family.iconPath { menu.addItem("Show in Finder", target: self, action: #selector(reveal(_:)), represented: path) }
             }
             menu.addItem(.separator())
             menu.addItem("Copy Name", target: self, action: #selector(copyName(_:)), represented: slot.title)

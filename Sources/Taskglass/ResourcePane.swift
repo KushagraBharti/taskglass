@@ -39,11 +39,13 @@ enum ResourcePane: String, CaseIterable, Identifiable {
 enum MetricSeries {
     case cpu, system, memory, gpu, renderer, tiler, ane, diskRead, diskWrite, diskTotal, download, upload, networkTotal, battery, cpuPower, gpuPower, temperature, gpuTemperature, batteryTemperature
     /// Selected-process history only (`Monitor.processHistory`): CPU percent per core, and physical footprint in bytes.
-    case processCPU, processMemory
+    case processCPU, processMemory, processGPUTime, processNeuralMemory
     func value(_ point: Point) -> Double? {
         let value: Double?
         switch self {
         case .cpu, .processCPU: value = point.cpu; case .system: value = point.systemCPU
+        case .processGPUTime: value = point.processGPUTime
+        case .processNeuralMemory: value = point.processNeuralMemory
         case .processMemory: value = point.processMemory
         case .memory: value = point.memory; case .gpu: value = point.gpu; case .renderer: value = point.renderer
         case .tiler: value = point.tiler; case .ane: value = point.aneWatts

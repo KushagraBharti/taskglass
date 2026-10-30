@@ -38,6 +38,8 @@ struct ContentView: View {
                             }
                             Divider()
                             Section("Columns") {
+                                Toggle("GPU time", isOn: $monitor.showGPU)
+                                Toggle("Neural Engine memory", isOn: $monitor.showNeuralMemory)
                                 Toggle("Resident memory", isOn: $monitor.showResident)
                                 Toggle("Disk activity", isOn: $monitor.showDisk)
                                 Toggle("User", isOn: $monitor.showUser)

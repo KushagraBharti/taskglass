@@ -49,6 +49,18 @@ import UniformTypeIdentifiers
         return scroll
     }
 
+    /// AppKit can retain a formerly stretched name width when columns are hidden.
+    /// Refit against the viewport, preserving metric widths and horizontal scrolling.
+    static func fitVisibleColumns(_ table: NSTableView) {
+        guard let first = table.tableColumns.first, let clip = table.enclosingScrollView?.contentView, clip.bounds.width > 0 else { return }
+        let visible = table.tableColumns.filter { !$0.isHidden }
+        let otherWidth = visible.dropFirst().reduce(CGFloat(0)) { $0 + $1.width }
+        let gaps = CGFloat(visible.count) * table.intercellSpacing.width
+        first.width = max(first.minWidth, clip.bounds.width - otherWidth - gaps)
+        let width = max(clip.bounds.width, first.width + otherWidth + gaps)
+        if abs(table.frame.width - width) > 0.5 { table.setFrameSize(NSSize(width: width, height: table.frame.height)) }
+    }
+
     /// Reconfigures only the cells already on screen; never rebuilds row views.
     static func refreshVisible(_ table: NSTableView, configure: (ProcessCell, String, Int) -> Void) {
         let range = table.rows(in: table.visibleRect)
@@ -69,6 +81,9 @@ import UniformTypeIdentifiers
     static let memoryHelp = footprintHelp + " Application rows add up their members; shared memory can be counted more than once."
     /// Columns whose content is words rather than measurements.
     static func isText(_ key: String) -> Bool { key == "name" || key == "uid" }
+    static let gpuHelp = "Driver-observed GPU execution time in milliseconds per second. Overlapping contexts can exceed 1,000 ms/s. This is not device utilization. A dash means no stable readable client counter. Short-lived clients may be missed."
+    static let neuralHelp = "Memory charged to this process for Neural Engine use. An allocation does not mean the Neural Engine is currently computing. A dash means unavailable."
+    static let aneHelp = "Kernel-accounted Neural Engine time in milliseconds per second for an OS resource group. An app and its helpers share one counter, counted once. This is not individual-process utilization. Available on recognized macOS 27 counter layouts."
     static let diskHelp = "Physical disk I/O. Reads served from the file cache are not included."
 }
 
@@ -248,12 +263,24 @@ import UniformTypeIdentifiers
 
 /// Return opens the selected row, matching double-click.
 final class ProcessTableView: NSTableView {
+    private var viewportWidth: CGFloat = -1
+    override func layout() {
+        super.layout()
+        let width = enclosingScrollView?.contentView.bounds.width ?? 0
+        if width != viewportWidth { viewportWidth = width; TableKit.fitVisibleColumns(self) }
+    }
     var onReturn: (() -> Void)?
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76, let onReturn { onReturn() } else { super.keyDown(with: event) }
     }
 }
 final class ProcessOutlineView: NSOutlineView {
+    private var viewportWidth: CGFloat = -1
+    override func layout() {
+        super.layout()
+        let width = enclosingScrollView?.contentView.bounds.width ?? 0
+        if width != viewportWidth { viewportWidth = width; TableKit.fitVisibleColumns(self) }
+    }
     var onReturn: (() -> Void)?
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76, let onReturn { onReturn() } else { super.keyDown(with: event) }
