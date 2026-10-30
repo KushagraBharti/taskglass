@@ -27,7 +27,12 @@ struct ResourceProcesses: View {
             }
             // Sizes itself to the header plus whole rows; every other row scrolls inside the table.
             ResourceProcessTable(monitor: monitor)
-                .clipShape(RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous))
+                // Paint the four outside corners instead of flattening a native
+                // scrolling table through a SwiftUI compositing mask.
+                .overlay {
+                    TableCornerCover().fill(Palette.background, style: FillStyle(eoFill: true))
+                        .allowsHitTesting(false)
+                }
                 .overlay { RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous).strokeBorder(Palette.keyline, lineWidth: Metrics.hairline) }
                 .overlay {
                     if leaders.isEmpty {
@@ -84,5 +89,15 @@ private struct ResourceProcessControls: View {
             ])
         }
         .controlSize(.small)
+    }
+}
+
+/// The page is opaque black. Covering only the outside corners preserves the
+/// rounded table edge without an offscreen texture of the whole scroll view.
+private struct TableCornerCover: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path(rect)
+        path.addPath(RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous).path(in: rect))
+        return path
     }
 }

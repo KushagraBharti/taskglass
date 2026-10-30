@@ -16,6 +16,12 @@ struct PlotRenderer: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PlotView { PlotView() }
     func updateNSView(_ view: PlotView, context: Context) {
+        // Published histories append or trim; unrelated controls and labels do
+        // not need to redraw the same pixels. Resizing invalidates the view itself.
+        guard view.points.count != points.count || view.points.first?.time != points.first?.time
+            || view.points.last?.time != points.last?.time || view.layers != layers
+            || view.floor != floor || view.ceiling != ceiling || view.timeWindow != window
+            || view.lineWidth != lineWidth || view.fillOpacity != fillOpacity || view.style != style else { return }
         view.points = points
         view.layers = layers
         view.floor = floor; view.ceiling = ceiling; view.timeWindow = window

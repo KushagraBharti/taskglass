@@ -59,7 +59,7 @@ struct OverviewDashboard: View {
     // MARK: Resource band
 
     func resource(_ pane: ResourcePane, value: String, detail: (full: String, short: String), ceiling: Double, first: Bool = false) -> some View {
-        BandCellButton(help: "Show \(pane.title) details", action: { monitor.pane = pane }) {
+        BandCellButton(help: "Show \(pane.title) details", leadingEdge: first, trailingEdge: pane == .neural, action: { monitor.pane = pane }) {
             VStack(alignment: .leading, spacing: 0) {
                 CellHeader(pane.title, icon: pane.icon, tint: pane.color)
                 Readout(text: value).padding(.top, 12)
@@ -78,7 +78,7 @@ struct OverviewDashboard: View {
     static let environmentLabel: CGFloat = 64
 
     var temperatures: some View {
-        BandCellButton(help: "Show temperature sensors", action: { monitor.pane = .temperatures }) {
+        BandCellButton(help: "Show temperature sensors", leadingEdge: true, action: { monitor.pane = .temperatures }) {
             VStack(alignment: .leading, spacing: 8) {
                 CellHeader("Temperatures", icon: "thermometer.medium", tint: Palette.temperature) { Text(thermalStateName) }
                     .padding(.bottom, 4)
@@ -148,7 +148,7 @@ struct OverviewDashboard: View {
 
     typealias Flow = (title: String, value: Double?, series: MetricSeries)
     func transport(_ pane: ResourcePane, accessory: String, read: Flow, write: Flow, first: Bool = false) -> some View {
-        BandCellButton(help: "Show \(pane.title) details", action: { monitor.pane = pane }) {
+        BandCellButton(help: "Show \(pane.title) details", leadingEdge: first, trailingEdge: !first, action: { monitor.pane = pane }) {
             VStack(alignment: .leading, spacing: 12) {
                 CellHeader(pane.title, icon: pane.icon, tint: pane.color) { Text(accessory) }
                 HStack(alignment: .bottom, spacing: 20) {

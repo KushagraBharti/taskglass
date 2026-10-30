@@ -10,8 +10,7 @@ struct Band<Content: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) { content }
             .fixedSize(horizontal: false, vertical: true)
-            .background(Palette.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous))
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Metrics.bandRadius, style: .continuous).strokeBorder(Palette.keyline, lineWidth: Metrics.hairline))
     }
 }
@@ -41,12 +40,16 @@ struct BandCellButton<Label: View>: View {
     let help: String
     let action: () -> Void
     let label: Label
-    init(help: String, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
+    let leadingEdge: Bool
+    let trailingEdge: Bool
+    init(help: String, leadingEdge: Bool = false, trailingEdge: Bool = false,
+         action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
         self.help = help; self.action = action; self.label = label()
+        self.leadingEdge = leadingEdge; self.trailingEdge = trailingEdge
     }
     var body: some View {
         Button(action: action) { label.cellLayout().contentShape(Rectangle()) }
-            .buttonStyle(HoverFillStyle())
+            .buttonStyle(HoverFillStyle(radius: Metrics.bandRadius, roundLeading: leadingEdge, roundTrailing: trailingEdge))
             .help(help)
             .accessibilityHint(help)
     }
@@ -54,15 +57,23 @@ struct BandCellButton<Label: View>: View {
 
 struct HoverFillStyle: ButtonStyle {
     var radius: CGFloat = 0
-    func makeBody(configuration: Configuration) -> some View { HoverFill(configuration: configuration, radius: radius) }
+    var roundLeading = true
+    var roundTrailing = true
+    func makeBody(configuration: Configuration) -> some View {
+        HoverFill(configuration: configuration, radius: radius, roundLeading: roundLeading, roundTrailing: roundTrailing)
+    }
     private struct HoverFill: View {
         let configuration: ButtonStyleConfiguration
         let radius: CGFloat
+        let roundLeading: Bool
+        let roundTrailing: Bool
         // Explicit State value: the toolchain lacks the SwiftUI macro plugin behind `@State`.
         private let hovering = SwiftUI.State(initialValue: false)
         var body: some View {
             configuration.label
-                .background(Color.white.opacity(configuration.isPressed ? 0.07 : hovering.wrappedValue ? 0.035 : 0), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+                .background(Color.white.opacity(configuration.isPressed ? 0.07 : hovering.wrappedValue ? 0.035 : 0), in: UnevenRoundedRectangle(topLeadingRadius: roundLeading ? radius : 0,
+                    bottomLeadingRadius: roundLeading ? radius : 0, bottomTrailingRadius: roundTrailing ? radius : 0,
+                    topTrailingRadius: roundTrailing ? radius : 0, style: .continuous))
                 .onHover { hovering.wrappedValue = $0 }
         }
     }

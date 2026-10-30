@@ -1,13 +1,12 @@
 import SwiftUI
 import AppKit
 
-/// One plotted series. The first filled layer gets the translucent area under its line.
-struct PlotLayer: Identifiable {
+/// One plotted series, with a stroke and optional translucent fill.
+struct PlotLayer: Equatable {
     let series: MetricSeries
     let color: Color
     var dashed = false
     var filled = false
-    var id: MetricSeries { series }
 }
 
 enum PlotUnit: Equatable {
