@@ -25,6 +25,12 @@ struct ProcessFamily: Equatable {
     }
     init(id: String, name: String, members: ProcessMembers, application: Bool) {
         self.id = id; self.name = name; self.members = members; self.application = application
+        if members.count == 1, let row = members.first {
+            gpu = row.gpuTime; neuralMemory = row.neuralMemory
+            ane = row.aneGroup == nil ? nil : row.aneGroupTime
+            cpu = row.cpu; memory = row.footprint; read = row.readRate; write = row.writeRate
+            return
+        }
         var gpu: Double?, neuralMemory: UInt64?, ane: Double?
         var groups = Set<UInt64>()
         var cpu: Double?, read: Double?, write: Double?, memory: UInt64?

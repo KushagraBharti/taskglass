@@ -1,5 +1,10 @@
 import Foundation
 
+enum ProcessSelectionIdentity: Equatable {
+    case application(String)
+    case process(Int32, UInt64)
+}
+
 /// Stable native outline identities. A child stores only its parent and index;
 /// its current process comes from the family's shared snapshot.
 @MainActor class ProcessOutlineItem: NSObject {
@@ -8,6 +13,10 @@ import Foundation
     var family: ProcessFamily? { nil }
     var title: String { process?.name ?? family?.name ?? "" }
     var contentID: String { process.map { "pid:\($0.id):\($0.birth)" } ?? family?.id ?? "" }
+    var selectionIdentity: ProcessSelectionIdentity? {
+        if let process { return .process(process.id, process.birth) }
+        return family.map { .application($0.id) }
+    }
     var expandable: Bool { family != nil }
     var gpu: Double? { process?.gpuTime ?? family?.gpu }
     var neural: UInt64? { process?.neuralMemory ?? family?.neuralMemory }
@@ -66,9 +75,10 @@ import Foundation
         return children[index]
     }
 
-    func child(matching id: String) -> ProcessOutlineChild? {
+    func child(matching identity: ProcessSelectionIdentity) -> ProcessOutlineChild? {
+        guard case .process(let pid, let birth) = identity else { return nil }
         guard let members = family?.members else { return nil }
-        for (index, row) in members.enumerated() where "pid:\(row.id):\(row.birth)" == id {
+        for (index, row) in members.enumerated() where row.id == pid && row.birth == birth {
             return child(at: index)
         }
         return nil

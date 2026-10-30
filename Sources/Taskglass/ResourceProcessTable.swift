@@ -68,7 +68,7 @@ struct ResourceProcessTable: NSViewRepresentable {
         /// What the outline was last told about each root: whether it has a disclosure triangle, and its member count.
         var delivered: [(expandable: Bool, children: Int)] = []
         var expandedIDs = Set<String>()
-        var selectedID: String?
+        var selectedIdentity: ProcessSelectionIdentity?
         var needsReload = true
         var previous: [ProcessRow] = []
         var previousKey = ""
@@ -182,10 +182,10 @@ struct ResourceProcessTable: NSViewRepresentable {
         func restoreSelection() {
             guard let table else { return }
             var target: Slot?
-            if let selectedID {
+            if let selectedIdentity {
                 for slot in roots {
-                    if slot.contentID == selectedID { target = slot; break }
-                    if table.isItemExpanded(slot), let child = slot.child(matching: selectedID) { target = child; break }
+                    if slot.selectionIdentity == selectedIdentity { target = slot; break }
+                    if table.isItemExpanded(slot), let child = slot.child(matching: selectedIdentity) { target = child; break }
                 }
             }
             let row = target.map { table.row(forItem: $0) } ?? -1
@@ -230,7 +230,7 @@ struct ResourceProcessTable: NSViewRepresentable {
         }
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !updating, let table else { return }
-            selectedID = (table.item(atRow: table.selectedRow) as? Slot)?.contentID
+            selectedIdentity = (table.item(atRow: table.selectedRow) as? Slot)?.selectionIdentity
         }
         func outlineViewItemDidExpand(_ notification: Notification) {
             guard !updating, let slot = notification.userInfo?["NSObject"] as? RootSlot, let index = roots.firstIndex(of: slot) else { return }
