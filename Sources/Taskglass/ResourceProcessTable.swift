@@ -33,6 +33,7 @@ struct ResourceProcessTable: NSViewRepresentable {
         ], in: table)
         table.tableColumns.last?.isHidden = true
         table.outlineTableColumn = table.tableColumns.first
+        table.stronglyReferencesItems = true
         table.style = .inset; table.indentationPerLevel = 14
         table.indentationMarkerFollowsCell = false
         table.backgroundColor = NSColor(white: 0.035, alpha: 1)
@@ -54,74 +55,16 @@ struct ResourceProcessTable: NSViewRepresentable {
         CGSize(width: proposal.width ?? 600, height: context.coordinator.viewportHeight)
     }
 
-    /// One outline row position. Its contents are replaced every sample.
-    @MainActor final class Slot: NSObject {
-        let isChild: Bool
-        var title = ""
-        var process: ProcessRow?
-        var family: ProcessFamily?
-        var children: [Slot] = []
-        /// Child slots no longer shown. An NSOutlineView doesn't retain its items and can keep a collapsed
-        /// item's old children cached, so slots are kept for reuse rather than released. Bounded by the
-        /// largest member count this slot has shown.
-        private var spare: [Slot] = []
-        init(child: Bool) { isChild = child }
-        /// Identity of what the slot currently shows: the app bundle path, or the process's PID and start time.
-        var contentID: String { family?.id ?? process.map { "pid:\($0.id):\($0.birth)" } ?? "" }
-        var expandable: Bool { family != nil }
-        var gpu: Double? { process?.gpuTime ?? family?.gpu }
-        var neural: UInt64? { process?.neuralMemory ?? family?.neuralMemory }
-        var ane: Double? { isChild ? nil : family?.ane }
-        var cpu: Double? { process?.cpu ?? family?.cpu }
-        var memory: UInt64? { process?.footprint ?? family?.memory }
-        var read: Double? { process?.readRate ?? family?.read }
-        var write: Double? { process?.writeRate ?? family?.write }
-        func value(_ key: String) -> Double? {
-            switch key {
-            case "gpu": gpu
-            case "ane": ane
-            case "neural": neural.map { Double($0) }
-            case "cpu": cpu
-            case "memory": memory.map { Double($0) }
-            case "read": read
-            case "write": write
-            case "disk": read.flatMap { r in write.map { r + $0 } }
-            default: nil
-            }
-        }
-        func show(_ family: ProcessFamily) {
-            title = family.name
-            if family.application {
-                self.family = family; process = nil
-                resize(to: family.members.count)
-                for (child, row) in zip(children, family.members) { child.title = row.name; child.process = row }
-            } else {
-                self.family = nil; process = family.members.first
-                resize(to: 0)
-            }
-        }
-        // AppKit may retain an item's identity in its outline cache, so keep the
-        // lightweight slot but release process snapshots and paths when recycled.
-        func releaseContents() {
-            title = ""; process = nil; family = nil
-            for child in children { child.releaseContents() }
-        }
-        private func resize(to count: Int) {
-            while children.count > count {
-                let child = children.removeLast()
-                child.releaseContents()
-                spare.append(child)
-            }
-            while children.count < count { children.append(spare.popLast() ?? Slot(child: true)) }
-        }
-    }
+    typealias Slot = ProcessOutlineItem
+    typealias RootSlot = ProcessOutlineRoot
 
     @MainActor final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate {
         let monitor: Monitor
         weak var table: ProcessOutlineView?
-        var roots: [Slot] = []
-        /// Root slots past the current count, kept alive for the same reason as `Slot.spare`.
-        private var spareRoots: [Slot] = []
+        var roots: [RootSlot] = []
+        /// A small pool handles ordinary process churn without retaining a high-water
+        /// allocation after a large process spike. AppKit owns its cached identities.
+        private var spareRoots: [RootSlot] = []
         /// What the outline was last told about each root: whether it has a disclosure triangle, and its member count.
         var delivered: [(expandable: Bool, children: Int)] = []
         var expandedIDs = Set<String>()
@@ -130,29 +73,33 @@ struct ResourceProcessTable: NSViewRepresentable {
         var previous: [ProcessRow] = []
         var previousKey = ""
         var previousGrouped: Bool?
+        var previousPane: ResourcePane?
+        private var rankingKey = ""
         var maximum = 1.0
         var updating = false
         /// Measured once rows exist; see `sizeThatFits`.
         var viewportHeight: CGFloat = 32 + CGFloat(ResourceProcessTable.visibleRows) * TableKit.rowHeight
         private var measured = false
-        private let placeholder = Slot(child: true)
+        private let placeholder = Slot()
         init(_ monitor: Monitor) { self.monitor = monitor }
 
         func update() {
             guard let table else { return }
-            let rows = monitor.resourceLeaders, key = monitor.resourceSort, grouped = monitor.resourceSort == "ane" || monitor.resourceGrouped
-            guard rows != previous || key != previousKey || grouped != previousGrouped else { return }
+            let rows = monitor.resourceLeaders, key = monitor.resourceSort, pane = monitor.pane
+            let grouped = key == "ane" || monitor.resourceGrouped
+            guard rows != previous || key != previousKey || grouped != previousGrouped || pane != previousPane else { return }
             updating = true
             defer { updating = false }
+            rankingKey = key
 
             let families = processFamilies(rows, key: key, grouped: grouped)
             let oldCount = roots.count
             while roots.count > families.count {
                 let slot = roots.removeLast()
                 slot.releaseContents()
-                spareRoots.append(slot)
+                if spareRoots.count < 32 { spareRoots.append(slot) }
             }
-            while roots.count < families.count { roots.append(spareRoots.popLast() ?? Slot(child: false)) }
+            while roots.count < families.count { roots.append(spareRoots.popLast() ?? RootSlot()) }
             for (slot, family) in zip(roots, families) { slot.show(family) }
             maximum = max(1e-9, roots.lazy.compactMap { $0.value(key) }.max() ?? 1)
             // Expansion is remembered across re-ranks and brief absences, but not for every app ever opened.
@@ -180,22 +127,22 @@ struct ResourceProcessTable: NSViewRepresentable {
                     // Refresh the disclosure triangle before any expansion, which depends on it.
                     if let known, known.expandable != slot.expandable { table.reloadItem(slot, reloadChildren: false) }
                     if want && !expanded { table.expandItem(slot); reconcileChildren(slot) }
-                    else if want && known?.children != slot.children.count { table.reloadItem(slot, reloadChildren: true) }
+                    else if want && known?.children != slot.childCount { table.reloadItem(slot, reloadChildren: true) }
                 }
                 TableKit.refreshVisible(table) { cell, column, row in
                     if let slot = table.item(atRow: row) as? Slot { configure(cell, key: column, slot: slot) }
                 }
             }
-            delivered = roots.map { ($0.expandable, $0.children.count) }
+            delivered = roots.map { ($0.expandable, $0.childCount) }
             var columnsChanged = false
             for column in table.tableColumns {
                 let columnKey = column.identifier.rawValue
-                let acceleratorPane = monitor.pane == .gpu || monitor.pane == .neural
+                let acceleratorPane = pane == .gpu || pane == .neural
                 let hidden: Bool
                 switch columnKey {
-                case "gpu": hidden = monitor.pane != .gpu && key != "gpu"
+                case "gpu": hidden = pane != .gpu && key != "gpu"
                 case "ane": hidden = key != "ane"
-                case "neural": hidden = monitor.pane != .neural && key != "neural"
+                case "neural": hidden = pane != .neural && key != "neural"
                 case "disk": hidden = key != "disk"
                 case "read", "write": hidden = acceleratorPane && key != columnKey && key != "disk"
                 default: continue
@@ -205,7 +152,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             if columnsChanged { TableKit.fitVisibleColumns(table) }
             if key != previousKey { markRanking(key) }
             restoreSelection()
-            previous = rows; previousKey = key; previousGrouped = grouped
+            previous = rows; previousKey = key; previousGrouped = grouped; previousPane = pane
             measureViewport()
         }
 
@@ -222,10 +169,10 @@ struct ResourceProcessTable: NSViewRepresentable {
 
         /// A collapsed slot can keep children cached from an earlier expansion while its contents change.
         /// After any expansion, make sure the rows shown are exactly the slot's current members.
-        func reconcileChildren(_ slot: Slot) {
+        func reconcileChildren(_ slot: RootSlot) {
             guard let table, table.isItemExpanded(slot) else { return }
-            let fresh = table.numberOfChildren(ofItem: slot) == slot.children.count
-                && slot.children.indices.allSatisfy { (table.child($0, ofItem: slot) as? Slot) === slot.children[$0] }
+            let fresh = table.numberOfChildren(ofItem: slot) == slot.childCount
+                && (0..<slot.childCount).allSatisfy { (table.child($0, ofItem: slot) as? Slot) === slot.child(at: $0) }
             if !fresh { table.reloadItem(slot, reloadChildren: true) }
         }
 
@@ -237,7 +184,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             if let selectedID {
                 for slot in roots {
                     if slot.contentID == selectedID { target = slot; break }
-                    if table.isItemExpanded(slot), let child = slot.children.first(where: { $0.contentID == selectedID }) { target = child; break }
+                    if table.isItemExpanded(slot), let child = slot.child(matching: selectedID) { target = child; break }
                 }
             }
             let row = target.map { table.row(forItem: $0) } ?? -1
@@ -267,11 +214,11 @@ struct ResourceProcessTable: NSViewRepresentable {
         // MARK: Data source and delegate
 
         func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-            (item as? Slot)?.children.count ?? (item == nil ? roots.count : 0)
+            (item as? RootSlot)?.childCount ?? (item == nil ? roots.count : 0)
         }
         func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-            let list = (item as? Slot)?.children ?? roots
-            return list.indices.contains(index) ? list[index] : placeholder
+            if let root = item as? RootSlot { return root.child(at: index) ?? placeholder }
+            return item == nil && roots.indices.contains(index) ? roots[index] : placeholder
         }
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool { (item as? Slot)?.expandable ?? false }
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -285,31 +232,33 @@ struct ResourceProcessTable: NSViewRepresentable {
             selectedID = (table.item(atRow: table.selectedRow) as? Slot)?.contentID
         }
         func outlineViewItemDidExpand(_ notification: Notification) {
-            guard !updating, let slot = notification.userInfo?["NSObject"] as? Slot, let index = roots.firstIndex(of: slot) else { return }
+            guard !updating, let slot = notification.userInfo?["NSObject"] as? RootSlot, let index = roots.firstIndex(of: slot) else { return }
             expandedIDs.insert(slot.contentID)
-            delivered[index].children = slot.children.count
+            delivered[index].children = slot.childCount
             // Checked after the expansion finishes, outside the notification.
             Task { @MainActor [weak self] in self?.reconcileChildren(slot) }
         }
         func outlineViewItemDidCollapse(_ notification: Notification) {
-            guard !updating, let slot = notification.userInfo?["NSObject"] as? Slot else { return }
+            guard !updating, let slot = notification.userInfo?["NSObject"] as? RootSlot else { return }
             expandedIDs.remove(slot.contentID)
         }
 
         func configure(_ cell: ProcessCell, key: String, slot: Slot) {
             switch key {
             case "name":
-                if slot.family != nil {
-                    cell.showGroup(slot.title, count: slot.children.count)
-                    cell.setIcon(slot.family.flatMap { family in family.iconPath.map { ProcessIcons.icon(forBundle: $0) } ?? family.members.first.map(ProcessIcons.icon(for:)) })
+                let tip: String?
+                if let family = slot.family {
+                    let count = family.members.count
+                    cell.showGroup(family.name, count: count)
+                    cell.setIcon(family.iconPath.map { ProcessIcons.icon(forBundle: $0) } ?? family.members.first.map(ProcessIcons.icon(for:)))
+                    tip = "\(family.name): \(count) \(count == 1 ? "process" : "processes"). Values add up members; shared memory can be counted more than once."
                 } else {
-                    cell.show(slot.title)
+                    let process = slot.process
+                    cell.show(process?.name ?? "")
                     // Helpers sit under their application's icon; repeating it on each would be noise.
-                    cell.setIcon(slot.isChild ? nil : slot.process.map(ProcessIcons.icon(for:)))
+                    cell.setIcon(slot.isChild ? nil : process.map(ProcessIcons.icon(for:)))
+                    tip = process?.path ?? process?.name
                 }
-                let tip = slot.family != nil
-                    ? "\(slot.title): \(slot.children.count) \(slot.children.count == 1 ? "process" : "processes"). Values add up members; shared memory can be counted more than once."
-                    : slot.process?.path ?? slot.title
                 if cell.toolTip != tip { cell.toolTip = tip }
                 return
             case "pid":
@@ -326,7 +275,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             case "write": cell.showMeasurement(.byteRate(slot.write), quiet: slot.write == 0)
             default: cell.showMeasurement(.byteRate(slot.value("disk")), quiet: slot.value("disk") == 0)
             }
-            let ranked = key == monitor.resourceSort
+            let ranked = key == rankingKey
             cell.setBar(ranked ? slot.value(key).map { $0 / maximum } : nil, tint: tint(key))
         }
         func tint(_ key: String) -> NSColor {

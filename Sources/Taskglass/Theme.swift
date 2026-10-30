@@ -110,14 +110,6 @@ func pressureName(_ level: Int) -> String { level == 1 ? "Normal" : level == 2 ?
 func pressureColor(_ level: Int) -> Color { level == 1 ? .green : level == 2 ? .yellow : level == 4 ? .red : .secondary }
 
 extension Monitor {
-    func peak(_ series: MetricSeries) -> Double? { history.lazy.compactMap(series.value).max() }
-    func mean(_ series: MetricSeries) -> Double? {
-        var sum = 0.0, count = 0
-        for point in history {
-            if let value = series.value(point) { sum += value; count += 1 }
-        }
-        return count == 0 ? nil : sum / Double(count)
-    }
     /// Nice 1/2/5 ceiling of the visible window's peak across several series, with an idle floor.
     func ceiling(_ series: [MetricSeries], minimum: Double) -> Double {
         niceCeiling(series.lazy.compactMap(peak).max() ?? 0, minimum: minimum)

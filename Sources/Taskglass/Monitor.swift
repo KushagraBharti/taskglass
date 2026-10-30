@@ -5,7 +5,8 @@ import Observation
 
 @MainActor @Observable final class Monitor {
     var snapshot = Snapshot()
-    var history: [Point] = []
+    var history: [Point] = [] { didSet { historyStatistics.invalidate() } }
+    @ObservationIgnored private var historyStatistics = HistoryStatistics()
     var search = ""
     var interval = 2.0 { didSet { if [1.0, 2, 5].contains(interval) { preferences.save(interval, for: "interval") } } }
     var paused = false
@@ -88,6 +89,9 @@ import Observation
         }
     }
     var historyCapacity: Int { min(601, Int(historySeconds / interval) + 1) }
+    // Passing history preserves Observation's dependency even on cache hits.
+    func peak(_ series: MetricSeries) -> Double? { historyStatistics.summary(series, points: history).peak }
+    func mean(_ series: MetricSeries) -> Double? { historyStatistics.summary(series, points: history).mean }
     var showingInspector = false
     var showGPU = true { didSet { preferences.save(showGPU, for: "showGPU") } }
     var showNeuralMemory = true { didSet { preferences.save(showNeuralMemory, for: "showNeuralMemory") } }

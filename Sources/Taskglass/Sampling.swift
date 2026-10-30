@@ -1,12 +1,29 @@
 import Foundation
 import SystemProbe
 
+/// Immutable strings and bundle identity are shared by all samples of a process.
+/// This keeps sorting/copying rows cheap and resolves non-app paths only once.
+final class ProcessMetadata: Sendable, Equatable {
+    let path: String?
+    let name: String
+    let application: ProcessApplication?
+    init(path: String?, name: String, application: ProcessApplication? = nil) {
+        self.path = path; self.name = name
+        self.application = application ?? processApplication(path)
+    }
+    static func == (lhs: ProcessMetadata, rhs: ProcessMetadata) -> Bool {
+        lhs === rhs || (lhs.path == rhs.path && lhs.name == rhs.name && lhs.application == rhs.application)
+    }
+}
+
 struct ProcessRow: Identifiable, Sendable, Equatable {
     let id: Int32
     let parent: Int32
-    let path: String?
+    let metadata: ProcessMetadata
     let birth: UInt64
-    let name: String
+    var path: String? { metadata.path }
+    var name: String { metadata.name }
+    var application: ProcessApplication? { metadata.application }
     let cpu: Double?
     let resident: UInt64
     let footprint: UInt64?
@@ -14,12 +31,31 @@ struct ProcessRow: Identifiable, Sendable, Equatable {
     let uid: UInt32
     let readRate: Double?
     let writeRate: Double?
-    var application: ProcessApplication? = nil
-    var gpuTime: Double? = nil
-    var neuralMemory: UInt64? = nil
-    var aneGroup: UInt64? = nil
-    var aneGroupTime: Double? = nil
+    var gpuTime: Double?
+    var neuralMemory: UInt64?
+    var aneGroup: UInt64?
+    var aneGroupTime: Double?
+
+    init(id: Int32, parent: Int32, metadata: ProcessMetadata, birth: UInt64, cpu: Double?, resident: UInt64,
+         footprint: UInt64?, threads: UInt32, uid: UInt32, readRate: Double?, writeRate: Double?,
+         gpuTime: Double? = nil, neuralMemory: UInt64? = nil, aneGroup: UInt64? = nil, aneGroupTime: Double? = nil) {
+        self.id = id; self.parent = parent; self.metadata = metadata; self.birth = birth; self.cpu = cpu
+        self.resident = resident; self.footprint = footprint; self.threads = threads; self.uid = uid
+        self.readRate = readRate; self.writeRate = writeRate; self.gpuTime = gpuTime; self.neuralMemory = neuralMemory
+        self.aneGroup = aneGroup; self.aneGroupTime = aneGroupTime
+    }
+
+    init(id: Int32, parent: Int32, path: String?, birth: UInt64, name: String, cpu: Double?, resident: UInt64,
+         footprint: UInt64?, threads: UInt32, uid: UInt32, readRate: Double?, writeRate: Double?,
+         application: ProcessApplication? = nil, gpuTime: Double? = nil, neuralMemory: UInt64? = nil,
+         aneGroup: UInt64? = nil, aneGroupTime: Double? = nil) {
+        self.init(id: id, parent: parent, metadata: ProcessMetadata(path: path, name: name, application: application),
+                  birth: birth, cpu: cpu, resident: resident, footprint: footprint, threads: threads, uid: uid,
+                  readRate: readRate, writeRate: writeRate, gpuTime: gpuTime, neuralMemory: neuralMemory,
+                  aneGroup: aneGroup, aneGroupTime: aneGroupTime)
+    }
 }
+
 struct Point: Sendable {
     let cpu: Double
     let memory: Double
@@ -88,7 +124,7 @@ actor Sampler {
     private var aneAccounting = ANEAccounting()
     private var previous: TGSystem?
     private var time: TimeInterval?
-    private var processes: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, name: String, path: String?, shortName: String, ioValid: Bool, application: ProcessApplication?)] = [:]
+    private var processes: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, metadata: ProcessMetadata, shortName: String, ioValid: Bool)] = [:]
     func reset() { gpuAccounting.reset(); aneAccounting.reset(); hardware.reset(); hardwareActive = false; processTime = nil; previous = nil; time = nil; processes.removeAll(keepingCapacity: true) }
     func read(includeProcesses: Bool = true, includeHardware: Bool? = nil, includeSensorDetails: Bool = true, includeGPU: Bool = false, includeANE: Bool = false) -> Snapshot {
         let now = ProcessInfo.processInfo.systemUptime
@@ -159,7 +195,7 @@ actor Sampler {
         let processElapsed = processTime.map { processNow - $0 } ?? 0
         var pointer: UnsafeMutablePointer<TGProcess>?
         let count = tg_processes(&pointer)
-        var next: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, name: String, path: String?, shortName: String, ioValid: Bool, application: ProcessApplication?)] = [:]
+        var next: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, metadata: ProcessMetadata, shortName: String, ioValid: Bool)] = [:]
         next.reserveCapacity(Int(count))
         if let pointer {
             defer { tg_free(pointer) }
@@ -194,25 +230,32 @@ actor Sampler {
             var pathBuffer: [CChar] = []
             for index in 0..<Int(count) {
                 var p = pointer[index]
-                let shortName = withUnsafePointer(to: &p.name) { $0.withMemoryRebound(to: CChar.self, capacity: 64) { String(cString: $0) } }
                 let old = processes[p.pid]
-                let path: String?
-                let name: String
-                let application: ProcessApplication?
-                if let old, old.birth == p.birth && old.shortName == shortName { path = old.path; name = old.name; application = old.application }
+                let shortName = withUnsafePointer(to: &p.name) { pointer in
+                    pointer.withMemoryRebound(to: CChar.self, capacity: 64) { name in
+                        if let old, old.birth == p.birth, old.shortName.withCString({ strcmp($0, name) == 0 }) {
+                            return old.shortName
+                        }
+                        // Decode only a new/changed name. The fallback also preserves
+                        // replacement-character behavior for truncated UTF-8 names.
+                        return String(cString: name)
+                    }
+                }
+                let metadata: ProcessMetadata
+                if let old, old.birth == p.birth && old.shortName == shortName { metadata = old.metadata }
                 else {
                     if pathBuffer.isEmpty { pathBuffer = [CChar](repeating: 0, count: 4096) }
-                    path = tg_path(p.pid, &pathBuffer, Int32(pathBuffer.count)) > 0 ? pathBuffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) } : nil
-                    name = path.map { path in
+                    let path = tg_path(p.pid, &pathBuffer, Int32(pathBuffer.count)) > 0 ? pathBuffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) } : nil
+                    let name = path.map { path in
                         path.lastIndex(of: "/").map { String(path[path.index(after: $0)...]) } ?? path
                     } ?? shortName
-                    application = processApplication(path)
+                    metadata = ProcessMetadata(path: path, name: name)
                 }
                 let cpu = old?.birth == p.birth ? cpuPercent(next: p.cpu, previous: old!.cpu, elapsed: processElapsed) : nil
-                result.processes.append(ProcessRow(id: p.pid, parent: p.parent, path: path, birth: p.birth, name: name, cpu: cpu, resident: p.resident, footprint: p.footprint_valid != 0 ? p.footprint : nil, threads: p.threads, uid: p.uid, readRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_read, old!.read)) / processElapsed : nil, writeRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_write, old!.write)) / processElapsed : nil, application: application,
+                result.processes.append(ProcessRow(id: p.pid, parent: p.parent, metadata: metadata, birth: p.birth, cpu: cpu, resident: p.resident, footprint: p.footprint_valid != 0 ? p.footprint : nil, threads: p.threads, uid: p.uid, readRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_read, old!.read)) / processElapsed : nil, writeRate: old?.birth == p.birth && old?.ioValid == true && processElapsed > 0 && p.footprint_valid != 0 ? Double(counterDelta(p.disk_write, old!.write)) / processElapsed : nil,
                     gpuTime: gpuRates[p.pid], neuralMemory: p.neural_valid != 0 ? p.neural_footprint : nil,
                     aneGroup: p.ane_group != 0 ? p.ane_group : nil, aneGroupTime: aneRates[p.ane_group]))
-                next[p.pid] = (p.birth, p.cpu, p.disk_read, p.disk_write, name, path, shortName, p.footprint_valid != 0, application)
+                next[p.pid] = (p.birth, p.cpu, p.disk_read, p.disk_write, metadata, shortName, p.footprint_valid != 0)
             }
         }
         if pointer == nil { gpuAccounting.reset(); aneAccounting.reset() }

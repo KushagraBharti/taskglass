@@ -8,7 +8,7 @@ struct ProcessFamily: Equatable {
 
     var iconPath: String? {
         for row in members {
-            if let path = (row.application ?? processApplication(row.path))?.path { return path }
+            if let path = row.application?.path { return path }
         }
         return nil
     }
@@ -78,7 +78,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         if byANE, let group = row.aneGroup {
             id = "coalition:\(group)"
             name = "Resource group \(group)"
-        } else if grouped, let app = row.application ?? processApplication(row.path) {
+        } else if grouped, let app = row.application {
             id = app.path
             name = app.name
         } else {
@@ -103,7 +103,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         if byANE && id.hasPrefix("coalition:") {
             var apps = Set<String>()
             for row in children {
-                if let name = (row.application ?? processApplication(row.path))?.name { apps.insert(name) }
+                if let name = row.application?.name { apps.insert(name) }
             }
             title = apps.count == 1 ? apps.first! : apps.count > 1 ? "Shared: " + apps.sorted().joined(separator: ", ") : children.first!.name + " · " + title
         }

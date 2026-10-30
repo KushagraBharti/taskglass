@@ -39,3 +39,19 @@ Both temporary comparison processes were closed. The original published dist/Tas
 Active time accumulated in this first turn: approximately 23 minutes, from 05:04:28 to 05:27 UTC. Scheduled waiting is excluded. Remaining requested active work: approximately 5 hours 37 minutes. Update this ledger at each continuation; do not claim six hours completed based on wall time.
 
 Next implementation priorities: inspect sampler dictionary/cache churn and repeated string/identity decoding, reduce repeated chart geometry and value formatting without changing gaps/scales, bound native outline reuse over extended process churn, and improve startup/retained memory. Obtain an exposed-window profile when available. Keep the focus on code, with brief targeted measurements and checks only. Preserve macOS14+ compatibility and avoid global installs. Complete the six-hour run before final PR/checks/merge/release.
+
+## Continuous work correction
+
+The user rejected scheduled continuation. Deleted taskglass-optimization-passes. Continuous six-hour work starts 2026-10-30T05:53:30.044580+00:00 and runs until 2026-10-30T11:53:30.044580+00:00. Deadline is tracked in .build/optimization/continuous-timer.json and checked between work passes. Do not create another continuation automation. Continue in this chat until the deadline; scheduled waiting no longer applies.
+
+## Pass 2: retained process data and history summaries
+
+Work resumed at 05:38:57 UTC; continuous deadline remains 11:53:30 UTC. Removed eagerly allocated helper rows from the native outline. Children are created on expansion and hold only a weak parent plus index. Root reuse is bounded to 32 items and clears old contents. AppKit explicitly retains returned items. Selection still follows PID and birth identity after reranking, and pane changes refresh columns even when the ranking is unchanged.
+
+Collapsed-group churn fixture: a 100-member app moves through 600 positions. Retained item identities fell from 60,600 to 600; 600 updates took 34.379 to 15.384 ms. Old item/root/child instance sizes were 432/176/24 bytes before the subsequent metadata change. An actual NSOutlineView fixture passed 80 growth/shrink/rerank cycles, expansion/collapse, helper selection, regrouping and empty data.
+
+Immutable process path/name/application metadata now shares one object across samples. ProcessRow stride fell from 224 to 168 bytes. Existing process names compare against the C buffer before decoding; non-app paths are resolved once. With the same already-optimized arrangement algorithm and frozen 2,000-row inputs, metadata sharing reduced CPU sorting from 2.534 to 1.679 ms, memory from 3.464 to 2.479, GPU from 2.199 to 1.521, PID from 0.128 to 0.075. These are isolated microbenchmarks, not whole-app measurements.
+
+History peak and mean requests share a per-series summary until history changes. A representative repeated axis-request fixture took 0.008 to 0.003 ms at 31 points, 0.039 to 0.011 at 181, and 0.102 to 0.030 at 601. Equality, empty history and invalidation checks passed. This remains a small absolute saving.
+
+Existing sampler/accounting/lifecycle checks passed after metadata changes. The full release build passed after all pass-2 changes. Temporary fixtures, baseline source and raw results remain under .build/optimization/pass2. No dependency or global installation. Next: reduce chart path generation and heatmap geometry work while preserving gaps, exact scales and appearance.
