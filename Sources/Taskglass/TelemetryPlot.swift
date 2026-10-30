@@ -41,44 +41,6 @@ enum PlotUnit {
 /// compact: overview cells with a top scale label. detailed: pane charts with a scale gutter and time axis.
 enum PlotStyle { case micro, inline, compact, detailed }
 
-/// Vector path on a fixed time axis: x spans the selected history window ending at the newest sample,
-/// so every chart in the app shares one time scale. Missing readings, a sample marked as beginning a new
-/// segment (first read, resume, wake or a sampling stall) and any long gap all break the line.
-struct TelemetryPath: Shape {
-    let points: [Point]
-    let series: MetricSeries
-    let floor: Double
-    let ceiling: Double
-    let window: Double
-    var area = false
-    static let maximumGap = 11.0
-    func path(in rect: CGRect) -> Path {
-        var output = Path()
-        let span = ceiling - floor
-        guard let end = points.last?.time, span > 0, window > 0 else { return output }
-        var pen = false
-        var startX: CGFloat = 0, lastX: CGFloat = 0, lastTime = -Double.infinity
-        func close() {
-            guard pen && area else { return }
-            output.addLine(to: CGPoint(x: lastX, y: rect.maxY)); output.addLine(to: CGPoint(x: startX, y: rect.maxY)); output.closeSubpath()
-        }
-        for point in points {
-            let age = end - point.time
-            guard age <= window else { continue }
-            let x = rect.minX + rect.width * (1 - age / window)
-            // The sampler marks restarts explicitly; the time gap is a backstop. Never interpolate across either.
-            if pen && (point.beginsSegment || point.time - lastTime > TelemetryPath.maximumGap) { close(); pen = false }
-            lastTime = point.time
-            guard let value = series.value(point) else { close(); pen = false; continue }
-            let y = rect.minY + rect.height * (1 - min(1, max(0, (value - floor) / span)))
-            if pen { output.addLine(to: CGPoint(x: x, y: y)) } else { output.move(to: CGPoint(x: x, y: y)); startX = x }
-            lastX = x; pen = true
-        }
-        close()
-        return output
-    }
-}
-
 /// Horizontal gridlines at even divisions; the baseline is drawn separately and stronger.
 struct PlotGrid: Shape {
     let divisions: Int
@@ -182,16 +144,8 @@ struct TelemetryPlot: View {
     }
 
     private func lines(lineWidth: CGFloat) -> some View {
-        ZStack {
-            ForEach(layers) { layer in
-                if layer.filled {
-                    TelemetryPath(points: points, series: layer.series, floor: floor, ceiling: ceiling, window: window, area: true)
-                        .fill(layer.color.opacity(style == .micro ? 0.18 : 0.13))
-                }
-                TelemetryPath(points: points, series: layer.series, floor: floor, ceiling: ceiling, window: window)
-                    .stroke(layer.color, style: StrokeStyle(lineWidth: layer.dashed ? lineWidth * 0.9 : lineWidth, lineCap: .round, lineJoin: .round, dash: layer.dashed ? [3, 2.5] : []))
-            }
-        }
+        PlotLines(points: points, layers: layers, floor: floor, ceiling: ceiling, window: window,
+                  lineWidth: lineWidth, fillOpacity: style == .micro ? 0.18 : 0.13)
     }
 
     private var startMarker: some View {
@@ -275,6 +229,12 @@ struct CoreHeatmap: NSViewRepresentable {
         var points: [Point] = [], indices: [Int] = []
         var prefix = "", timeWindow = 180.0, signature = ""
         var tint: NSColor = Palette.performanceNS
+        private let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]
+        private let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.labelColor]
+        private let missingAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor]
         override var isFlipped: Bool { true }
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -285,27 +245,10 @@ struct CoreHeatmap: NSViewRepresentable {
             let labelWidth = CoreHeatmap.labelWidth, valueWidth = CoreHeatmap.valueWidth
             let rowHeight = CoreHeatmap.rowHeight, step = rowHeight + CoreHeatmap.rowGap
             let plotWidth = max(1, bounds.width - labelWidth - valueWidth)
-            let labelFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
-            let labelAttributes: [NSAttributedString.Key: Any] = [.font: labelFont, .foregroundColor: NSColor.secondaryLabelColor]
-            let valueAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.labelColor]
-            let missingAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor]
-            let track = NSBezierPath()
-            let buckets = (0..<8).map { _ in NSBezierPath() }
-            let end = points.last?.time ?? 0
+            let geometry = HeatmapGeometry(points: points, indices: indices, window: timeWindow, plotWidth: plotWidth,
+                                           labelWidth: labelWidth, rowHeight: rowHeight, rowStep: step)
             for (row, index) in indices.enumerated() {
                 let y = CGFloat(row) * step
-                track.appendRect(NSRect(x: labelWidth, y: y, width: plotWidth, height: rowHeight))
-                for (position, sample) in points.enumerated() where sample.cores.indices.contains(index) {
-                    let usage = sample.cores[index], age = end - sample.time
-                    guard usage.isFinite, age <= timeWindow else { continue }
-                    let x = labelWidth + plotWidth * (1 - age / timeWindow)
-                    // A cell spans to the next sample, unless that sample starts a new segment after a pause or stall.
-                    let following = position + 1 < points.count ? points[position + 1] : nil
-                    let next = following.map { $0.beginsSegment ? sample.time + 2 : $0.time } ?? sample.time + 2
-                    let width = min(max(1, plotWidth * min(5, next - sample.time) / timeWindow), labelWidth + plotWidth - x)
-                    guard width > 0 else { continue }
-                    buckets[min(7, Int(min(99.9, max(0, usage)) / 12.5))].appendRect(NSRect(x: x, y: y, width: width, height: rowHeight))
-                }
                 let label = "\(prefix)\(row + 1)" as NSString
                 label.draw(at: NSPoint(x: 0, y: y + (rowHeight - label.size(withAttributes: labelAttributes).height) / 2), withAttributes: labelAttributes)
                 let current = points.last.flatMap { $0.cores.indices.contains(index) ? $0.cores[index] : nil }
@@ -314,10 +257,15 @@ struct CoreHeatmap: NSViewRepresentable {
                 let size = value.size(withAttributes: attributes)
                 value.draw(at: NSPoint(x: bounds.width - size.width, y: y + (rowHeight - size.height) / 2), withAttributes: attributes)
             }
-            NSColor.white.withAlphaComponent(0.05).setFill(); track.fill()
-            for (level, path) in buckets.enumerated() where !path.isEmpty {
-                tint.withAlphaComponent(CoreHeatmap.alpha(level: level)).setFill(); path.fill()
+            guard let context = NSGraphicsContext.current?.cgContext else { return }
+            context.saveGState()
+            context.setFillColor(NSColor.white.withAlphaComponent(0.05).cgColor)
+            context.addPath(geometry.track); context.fillPath()
+            for (level, path) in geometry.levels.enumerated() where !path.isEmpty {
+                context.setFillColor(tint.withAlphaComponent(CoreHeatmap.alpha(level: level)).cgColor)
+                context.addPath(path); context.fillPath()
             }
+            context.restoreGState()
         }
     }
 }

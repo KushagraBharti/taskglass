@@ -55,3 +55,13 @@ Immutable process path/name/application metadata now shares one object across sa
 History peak and mean requests share a per-series summary until history changes. A representative repeated axis-request fixture took 0.008 to 0.003 ms at 31 points, 0.039 to 0.011 at 181, and 0.102 to 0.030 at 601. Equality, empty history and invalidation checks passed. This remains a small absolute saving.
 
 Existing sampler/accounting/lifecycle checks passed after metadata changes. The full release build passed after all pass-2 changes. Temporary fixtures, baseline source and raw results remain under .build/optimization/pass2. No dependency or global installation. Next: reduce chart path generation and heatmap geometry work while preserving gaps, exact scales and appearance.
+
+## Pass 3: chart paths and heatmap batching
+
+Line and fill paths now share one calculation. Kept SwiftUI rendering after comparing a native-view experiment: its extra view/cache machinery did not materially improve the default short-history case. Five filled-series path calculations improved by about 40–41% at 31/181/601 points. Path commands and segment boundaries match, with coordinate differences below 0.0001 pt from SwiftUI's float conversion.
+
+Offscreen NSHostingView update/layout/bitmap comparison at 2x: two-layer 31-point thumbnail 0.084 to 0.081 ms; 601-point thumbnail 0.317 to 0.181; 601-point 600x240 chart 1.055 to 0.941. These forced bitmap fixtures are not a visible-window smoothness measurement. The unused native-view experiment remains only under .build/optimization/pass3.
+
+Core heatmaps calculate each sample's x/width once for all cores and batch rectangles into the eight load paths. A direct per-rectangle Core Graphics rewrite was slower and rejected. Batched geometry for 18 cores improved 31-point construction 0.018 to 0.016 ms, 181 points 0.082 to 0.066, 601 points 0.143 to 0.105. The heatmap raster is pixel-identical across all three history windows, gaps, missing cores and nonfinite values. Label font/attribute dictionaries are retained per heatmap view instead of recreated every draw. Full release build passed.
+
+Continuous work is still underway. Next candidate: stop copying full process records into every grouped list; store ordered indices into the shared sample while preserving aggregation and selection.
