@@ -113,10 +113,13 @@ import Observation
         var arranged = resourceSample
         if filterScope != 0 || !query.isEmpty {
             let uid = getuid()
+            // A textual name query cannot occur in a decimal PID. Avoid
+            // formatting every PID on each keystroke of an ordinary app search.
+            let searchesPID = query.utf8.allSatisfy { (48...57).contains($0) || $0 == 45 }
             let appIDs = filterScope == 2 ? Set(NSWorkspace.shared.runningApplications.lazy.filter { $0.activationPolicy == .regular }.map(\.processIdentifier)) : []
             arranged = resourceSample.filter {
                 (filterScope != 1 || $0.uid == uid) && (filterScope != 2 || appIDs.contains($0.id)) &&
-                (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || String($0.id).contains(query))
+                (query.isEmpty || (searchesPID && String($0.id).contains(query)) || $0.name.localizedCaseInsensitiveContains(query))
             }
         }
         arranged.sort { processPrecedes($0, $1, key: key, ascending: up) }

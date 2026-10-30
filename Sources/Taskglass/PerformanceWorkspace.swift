@@ -125,7 +125,9 @@ struct PerformanceWorkspace: View {
     // MARK: CPU
 
     var cpu: some View {
-        scaffold(value: percent(s.cpu), caption: "Total utilization", subtitle: cpuComposition,
+        let kinds = h.coreKinds
+        let groups = coreGroups
+        return scaffold(value: percent(s.cpu), caption: "Total utilization", subtitle: cpuComposition,
                  about: ["Total and system utilization come from kernel CPU tick deltas, normalized so 100% means every core is busy.",
                          "Core types come from the device tree. Each heatmap row is one core over the selected history window.",
                          "Power is experimental CLPC energy telemetry. Temperature averages the CPU sensor group inferred from SMC key prefixes."],
@@ -138,9 +140,9 @@ struct PerformanceWorkspace: View {
             PaneSection("Core history", accessory: { LoadRamp() }) {
                 Band {
                     VStack(alignment: .leading, spacing: 18) {
-                        if coreGroups.isEmpty { EmptyRow(text: "Core layout not reported") }
-                        ForEach(coreGroups, id: \.self) { group in
-                            let indices = h.coreKinds.indices.filter { h.coreKinds[$0] == group }
+                        if groups.isEmpty { EmptyRow(text: "Core layout not reported") }
+                        ForEach(groups, id: \.self) { group in
+                            let indices = kinds.indices.filter { kinds[$0] == group }
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack(alignment: .firstTextBaseline) {
                                     SwatchLabel(title: group == "Cores" ? "Cores" : "\(group) cores", tint: Palette.core(group))
@@ -359,8 +361,10 @@ struct PerformanceWorkspace: View {
     }
     func rank(_ kind: String) -> Int { kind == "Super" ? 0 : kind == "Performance" ? 1 : kind == "Efficiency" ? 2 : 3 }
     func average(_ indices: [Int]) -> Double? {
-        let values = indices.compactMap { s.cores.indices.contains($0) ? s.cores[$0] : nil }
-        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+        let cores = s.cores
+        var total = 0.0, count = 0
+        for index in indices where cores.indices.contains(index) { total += cores[index]; count += 1 }
+        return count == 0 ? nil : total / Double(count)
     }
 }
 

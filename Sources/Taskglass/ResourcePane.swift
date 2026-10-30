@@ -39,7 +39,11 @@ enum ResourcePane: String, CaseIterable, Identifiable {
 func niceCeiling(_ value: Double, minimum: Double) -> Double {
     let x = max(value, minimum)
     let exponent = pow(10, floor(log10(x)))
-    return [1.0, 2, 5, 10].map { $0 * exponent }.first { $0 >= x } ?? x
+    for step in [1.0, 2, 5, 10] {
+        let ceiling = step * exponent
+        if ceiling >= x { return ceiling }
+    }
+    return x
 }
 /// Next power of two at or above the value. Binary byte units then label as 512 KB, 1 MB, 2 MB, 4 MB…
 func binaryCeiling(_ value: Double, minimum: Double) -> Double {

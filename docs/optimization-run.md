@@ -131,3 +131,7 @@ Representative percentage formatting fell from 0.599 to 0.121 microseconds. Form
 ## Pass 16: inactive-page retention and native drawing inputs
 
 Switching to Overview/Processes releases the unused resource-list sample; leaving Overview releases its old top-five list. Sampler/GPU/ANE resets now release dictionaries whose reserved capacity was never reused because each next sample builds a new dictionary. Removed the global sensor-row cache: the equatable sensor section already prevents fast-sample work, so derived rows now live only with their view. Heatmaps compare typed inputs directly rather than constructing a signature string. Fixed native palette/track colors are shared, and each heatmap reuses its eight exact alpha colors until its tint changes. Release build passed. No whole-app footprint claim for these lifetime reductions.
+
+## Pass 17: search and CPU detail work
+
+Name searches skip impossible PID matches and numeric searches try the cheap PID match first. A frozen 2,000-row filter kept identical results for text, numeric, empty and Unicode queries. Representative times: helper 1.290 to 1.155 ms, codex 1.251 to 1.117, missing text 1.315 to 1.160, numeric 15 2.098 to 1.994. A hyphen query remained essentially unchanged. CPU detail rendering reads core kinds once per body and computes group averages directly without temporary value arrays. Nice chart ceilings no longer allocate a mapped array. Release build passed.
