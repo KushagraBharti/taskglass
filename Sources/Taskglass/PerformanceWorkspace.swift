@@ -322,7 +322,6 @@ struct PerformanceWorkspace: View {
     var sensors: some View {
         let scale = monitor.temperatureScale
         let hottest = h.temperatures.max { $0.celsius < $1.celsius }
-        let sensorRows = SensorRows.rows(h.temperatures, scope: monitor.sensorScope)
         return scaffold(value: temperature(h.cpuTemperature), caption: "CPU sensor group average",
                         subtitle: h.temperatures.count == 1 ? "1 sensor" : "\(h.temperatures.count) sensors",
                         about: ["CPU and GPU groups are inferred from SMC key prefixes. They are not a documented junction-temperature API. Every reading keeps its original sensor name.",
@@ -336,30 +335,15 @@ struct PerformanceWorkspace: View {
                                 Stat("Thermal state", thermalStateName, help: "macOS thermal pressure state")]) {
             PaneSection("Fans") {
                 Band {
-                    VStack(spacing: 8) { FanList(hardware: h) }
+                    VStack(spacing: 8) { FanList(hardware: h).equatable() }
                         .frame(maxWidth: 520, alignment: .leading).cellLayout()
                 }
                 .help("Fan speeds are read only. Taskglass never changes them.")
             }
-            PaneSection("Sensors", accessory: {
-                HStack(spacing: 12) {
-                    Text("\(sensorRows.count) of \(h.temperatures.count)").monospacedDigit()
-                    Picker("Sensor group", selection: $monitor.sensorScope) {
-                        ForEach(sensorGroups, id: \.self) { Text($0 == "PMU / other" ? "Other" : $0).tag($0) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize().controlSize(.small)
-                }
-            }) {
-                SensorTable(readings: sensorRows).equatable()
-            }
+            SensorSection(monitor: monitor, readings: h.temperatures).equatable()
         }
     }
 
-    /// Groups that actually have readings, so the filter never offers an empty choice.
-    var sensorGroups: [String] {
-        let present = Set(h.temperatures.map(\.group))
-        return ["All"] + Self.sensorOrder.filter(present.contains)
-    }
     static let sensorOrder = ["CPU", "GPU", "Storage", "Battery", "PMU / other"]
 
     // MARK: Derived values
@@ -379,6 +363,30 @@ struct PerformanceWorkspace: View {
     }
 }
 
+/// The filter and table depend on slow sensor samples, not each new CPU/history sample.
+private struct SensorSection: View, Equatable {
+    let monitor: Monitor
+    let readings: [TemperatureReading]
+    nonisolated static func == (a: Self, b: Self) -> Bool { a.monitor === b.monitor && a.readings == b.readings }
+    var body: some View {
+        @Bindable var monitor = monitor
+        let rows = SensorRows.rows(readings, scope: monitor.sensorScope)
+        let present = Set(readings.map(\.group))
+        let groups = ["All"] + PerformanceWorkspace.sensorOrder.filter(present.contains)
+        PaneSection("Sensors", accessory: {
+            HStack(spacing: 12) {
+                Text("\(rows.count) of \(readings.count)").monospacedDigit()
+                Picker("Sensor group", selection: $monitor.sensorScope) {
+                    ForEach(groups, id: \.self) { Text($0 == "PMU / other" ? "Other" : $0).tag($0) }
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize().controlSize(.small)
+            }
+        }) {
+            SensorTable(readings: rows).equatable()
+        }
+    }
+}
+
 /// Filtered, ordered sensor rows. Readings refresh every 10 s at most, so most samples reuse the last
 /// order instead of re-sorting ~130 names with a localized compare. Holds one list.
 @MainActor enum SensorRows {
@@ -386,8 +394,7 @@ struct PerformanceWorkspace: View {
     private static var scope = ""
     private static var output: [TemperatureReading] = []
     static func rows(_ readings: [TemperatureReading], scope next: String) -> [TemperatureReading] {
-        let same = next == scope && readings.count == input.count
-            && zip(readings, input).allSatisfy { $0.id == $1.id && $0.celsius == $1.celsius && $0.group == $1.group }
+        let same = next == scope && readings == input
         guard !same else { return output }
         let order = PerformanceWorkspace.sensorOrder
         input = readings; scope = next
@@ -407,7 +414,7 @@ struct SensorTable: View, Equatable {
     static let columns = [ColumnSpec(title: "Sensor", width: nil), ColumnSpec(title: "Source", width: 90),
                           ColumnSpec(title: "Group", width: 100), ColumnSpec(title: "Temperature", width: 96, trailing: true)]
     nonisolated static func == (a: SensorTable, b: SensorTable) -> Bool {
-        a.readings.count == b.readings.count && zip(a.readings, b.readings).allSatisfy { $0.id == $1.id && $0.celsius == $1.celsius }
+        a.readings == b.readings
     }
     var body: some View {
         Band {

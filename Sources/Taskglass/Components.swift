@@ -333,11 +333,16 @@ struct LoadRamp: View {
 }
 
 /// Every fan the SMC reports, against its own reported maximum. Read-only.
-struct FanList: View {
-    let hardware: HardwareMetrics
-    var labelWidth: CGFloat = 48
+struct FanList: View, Equatable {
+    private let fan0: Double?, fan1: Double?, fan0Max: Double?, fan1Max: Double?
+    let labelWidth: CGFloat
+    init(hardware: HardwareMetrics, labelWidth: CGFloat = 48) {
+        fan0 = hardware.fan0; fan1 = hardware.fan1
+        fan0Max = hardware.fan0Max; fan1Max = hardware.fan1Max
+        self.labelWidth = labelWidth
+    }
     var body: some View {
-        let fans = [(hardware.fan0, hardware.fan0Max), (hardware.fan1, hardware.fan1Max)].filter { $0.0 != nil || $0.1 != nil }
+        let fans = [(fan0, fan0Max), (fan1, fan1Max)].filter { $0.0 != nil || $0.1 != nil }
         if fans.isEmpty {
             Text("No fans reported").font(.caption11).foregroundStyle(.secondary).frame(height: Metrics.rowHeight)
         } else {

@@ -111,3 +111,9 @@ Investigating whether the already-collected per-core CPU counters can also provi
 Moved resource rail rows, the live subtitle and process workspace into their own view bodies. The window root now reads stable chip/battery-presence properties, updated only when those facts change. Live CPU/history updates no longer rebuild NavigationSplitView and the toolbar. In an instrumented offscreen host, 30 changing samples evaluated the old ContentView root 31 times and the new root once. This proves the observation boundary; it is not an exposed-window smoothness claim. The release build passed.
 
 The aggregate CPU-counter investigation remains deferred; no C counter semantics changed. Both current XNU and the older source files were inspected, but a source-transition fallback would add complexity for one small RPC saving. Prioritizing UI invalidation and retained memory instead.
+
+## Pass 13: slow hardware and sensor presentation
+
+Hardware mapping reuses cached static/slow fields and borrows the raw temperature tuple in place. Fast GPU/power/disk values are always replaced, including unavailable values; slow capacity/battery/fan/sensor fields refresh at their existing cadence. A deterministic C fixture matched old/new readings across availability changes and sensor-mode transitions. Mapping including the synthetic probe took 4.524 versus 4.344 microseconds, a small saving rather than an app-wide claim.
+
+The sensor filter/table now has its own observation boundary and complete reading equality, including names and sources. Twenty fast CPU updates caused no sensor-section rebuild; changing the filter or sensor reading still updated it. Fan views compare only their four speed/maximum inputs and label width. Release build passed. Fixtures remain in .build/optimization/pass13. An initial synthetic fixture incorrectly changed slow storage data on fast reads; corrected it to match the real probe's cached behavior before comparing.

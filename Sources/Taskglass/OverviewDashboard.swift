@@ -99,7 +99,7 @@ struct OverviewDashboard: View {
         BandCellButton(help: "Fan speeds are read only. Show fans and temperature sensors", action: { monitor.pane = .temperatures }) {
             VStack(alignment: .leading, spacing: 8) {
                 CellHeader("Fans", icon: "fan", tint: Palette.fan).padding(.bottom, 4)
-                FanList(hardware: h, labelWidth: Self.environmentLabel)
+                FanList(hardware: h, labelWidth: Self.environmentLabel).equatable()
             }
         }
     }
