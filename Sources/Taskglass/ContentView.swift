@@ -8,8 +8,8 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $monitor.pane) {
-                Label("Overview", systemImage: ResourcePane.overview.icon).tag(ResourcePane.overview)
-                Label("Processes", systemImage: ResourcePane.processes.icon).tag(ResourcePane.processes)
+                Label("Overview", systemImage: ResourcePane.overview.icon).foregroundStyle(Color(white: 0.88)).tag(ResourcePane.overview)
+                Label("Processes", systemImage: ResourcePane.processes.icon).foregroundStyle(Color(white: 0.88)).tag(ResourcePane.processes)
                 Section("Resources") {
                     ForEach(ResourcePane.allCases.filter { $0 != .overview && $0 != .processes && ($0 != .battery || h.batteryPresent) }) { resource in
                         railRow(resource).tag(resource)
@@ -138,10 +138,10 @@ struct ContentView: View {
                           floor: scale.floor, ceiling: scale.ceiling, window: monitor.historySeconds, unit: pane.unit, style: .micro)
                 .frame(width: 44, height: 24)
             VStack(alignment: .leading, spacing: 1) {
-                Text(pane.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(pane.title).font(.system(size: 13, weight: .medium)).foregroundStyle(Color(white: 0.88)).lineLimit(1)
                 let value = railValue(pane)
                 Text(value).font(.caption11).monospacedDigit().lineLimit(1)
-                    .foregroundStyle(value == "—" || value == "Not reported" ? .tertiary : .secondary)
+                    .foregroundStyle(Color(white: value == "—" || value == "Not reported" ? 0.48 : 0.64))
             }
         }
         .padding(.vertical, 3)

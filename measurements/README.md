@@ -54,3 +54,9 @@ Stripping changes download/disk size, not a proven runtime speedup. Swift uses s
 `release-native-overview-60s.json` records the native-engine candidate before the paused-navigation fix. It was covered for the entire 60.23 s: 0.558% of one CPU core, 86.08 MiB median physical footprint and 86.42 MiB peak. It recorded 30 samples. This is covered-window behavior, not a visible dashboard benchmark. The subsequent fix changes retained process browsing/counts, not the Overview collection cadence.
 
 The final `-Osize` regression run passed with a 99.87% busy-thread fixture, 2.47 ms direct sampler average over 50 reads with 718 accessible processes, 1.403 ms grouping average over 100 builds, and 3.04 ms combined warm hardware/process reads. These timings exclude UI work. Lifecycle checks include paused process browsing as well as covered publication, exposure, wake-baseline reset and cancellation.
+
+## Final visible dashboard
+
+`release-overview-final-60s.json` records the final local source at commit 973790c, after the paused-navigation fix and tools-version compatibility change, before the final sidebar-only contrast correction. The JSON includes the source digest, binary digest and compiler configuration. The window was exposed for all 60.22 s, with Overview selected and 29 sample events. There were no agent UI actions during collection; other workloads and user activity were uncontrolled.
+
+CPU averaged 2.36% of one core. Median physical footprint was 161.45 MiB, peak 179.47 MiB, and the run ended at 91.53 MiB. Median RSS was 164.47 MiB; interrupt wakeups averaged 2.74/s. The decline during this short run illustrates why a single launch screenshot is not a steady-state memory claim. These are local SDK 27 measurements, not measurements of the CI-built SDK 26 download, and do not establish being the lightest monitor.

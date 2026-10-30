@@ -44,3 +44,5 @@ The previous pass's design work stayed as it was. This pass checked the current 
 - Saved reviewed Overview and CPU screenshots from the running native-engine build. Raw inspector screenshots and logs remain ignored.
 
 The automation connection intermittently timed out, including on app inventory with Taskglass closed. Thread traces showed continuing collection and an idle main run loop; later attempts recovered. These failures were not counted as successful UI checks. Full VoiceOver, every accessibility preference combination, long process-churn sessions and physical validation of other M-series/OS combinations remain outside the verified coverage.
+
+A final inactive-window screenshot exposed dim native sidebar labels on the fixed black background. The parent assigned explicit light foreground colors to navigation labels and secondary readings; this is a contrast correction with no collection/layout change.
