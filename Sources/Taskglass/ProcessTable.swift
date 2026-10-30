@@ -63,7 +63,9 @@ struct ProcessTable: NSViewRepresentable {
         if rowsChanged || sortChanged {
             let countChanged = c.rows.count != monitor.rows.count
             c.rows = monitor.rows
-            c.maximum = c.rows.lazy.compactMap { c.barValue($0) }.max() ?? 0
+            // Bars use the descending sort's metric, so its first row already
+            // holds the maximum. Ascending and non-meter columns show no bars.
+            c.maximum = c.ascending ? 0 : c.rows.first.flatMap { c.barValue($0) } ?? 0
             if countChanged { table.noteNumberOfRowsChanged() }
             TableKit.refreshVisible(table) { cell, key, row in
                 if row < c.rows.count { c.configure(cell, key: key, process: c.rows[row]) }

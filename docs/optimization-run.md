@@ -75,3 +75,9 @@ Frozen 2,000-process comparison against the previous implementation: CPU groupin
 ## Pass 5: resolve sort keys before comparisons
 
 Added a typed process sort key, resolved once at arrangement/grouping entry. Preserved string entry points and their fallback behavior. All 13 process columns compare equal to the previous ordering in both directions. Frozen 2,000-row process sorting improved memory 2.432 to 1.907 ms, disk 2.089 to 1.865, write 1.567 to 1.290 and CPU 1.764 to 1.686. PID/name were essentially unchanged. Grouping improved another 7–32% depending on the ranking. Current source compiled in the release build.
+
+## Pass 6: native cell layout
+
+Replaced per-cell Auto Layout constraints with direct frames for the fixed-height text, 16-point icon and 28-point meter. Matched NSTextField alignment insets so text edges remain identical. The six-column raster fixture matched pixel for pixel, including a grouped app title and truncated numeric text. Constructing/layout of 120 cells fell from 9.288 to 5.312 ms; value updates plus alternating column resizes fell from 3.284 to 0.687 ms. This measures cell layout, not overall application CPU.
+
+Grouped title caching now compares the existing title/count directly, avoiding a concatenated cache-key string. Font/color/paragraph attributes are shared. Bar maxima use the first already-sorted row instead of scanning the entire list again. Release build passed after the layout and title-cache changes; final integration checks still remain.

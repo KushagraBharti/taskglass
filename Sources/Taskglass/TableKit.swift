@@ -10,6 +10,15 @@ import UniformTypeIdentifiers
     static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
     static let countFont = NSFont.systemFont(ofSize: 11)
     static let gridColor = NSColor.white.withAlphaComponent(0.055)
+    private static let groupParagraph: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byTruncatingMiddle
+        return style.copy() as! NSParagraphStyle
+    }()
+    static let groupAttributes: [NSAttributedString.Key: Any] = [
+        .font: groupFont, .foregroundColor: NSColor.labelColor, .paragraphStyle: groupParagraph]
+    static let countAttributes: [NSAttributedString.Key: Any] = [
+        .font: countFont, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: groupParagraph]
 
     struct Column {
         let key: String
@@ -106,66 +115,51 @@ enum CellMeasurement: Equatable {
     let label = NSTextField(labelWithString: "")
     private let icon: NSImageView?
     private let bar: MeterBar?
-    private var renderedKey = ""
+    private var renderedGroup: (title: String, count: Int)?
     private var measurement: CellMeasurement?
     private var measurementQuiet = false
     private let baseFont: NSFont
+
+    private let labelLeading: CGFloat
+    private var labelHeight: CGFloat = 0
 
     init(key: String) {
         baseFont = key == "name" ? TableKit.nameFont : TableKit.numberFont
         icon = key == "name" ? NSImageView() : nil
         bar = ["cpu", "memory", "gpu", "ane", "neural", "read", "write", "disk"].contains(key) ? MeterBar() : nil
+        labelLeading = key == "name" ? 25 : TableKit.isText(key) || key == "pid" ? 6 : 38
         super.init(frame: .zero)
         identifier = NSUserInterfaceItemIdentifier(key)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        icon?.translatesAutoresizingMaskIntoConstraints = false
-        bar?.translatesAutoresizingMaskIntoConstraints = false
         label.lineBreakMode = .byTruncatingMiddle
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         icon?.imageScaling = .scaleProportionallyUpOrDown
         label.alignment = TableKit.isText(key) ? .left : .right
         label.font = baseFont
+        labelHeight = label.intrinsicContentSize.height
         addSubview(label); textField = label
-        if let icon {
-            addSubview(icon); imageView = icon
-            NSLayoutConstraint.activate([
-                icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-                icon.widthAnchor.constraint(equalToConstant: 16), icon.heightAnchor.constraint(equalToConstant: 16),
-                icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-                label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 7),
-                label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-                label.centerYAnchor.constraint(equalTo: centerYAnchor)
-            ])
-        } else if TableKit.isText(key) {
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-                label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-                label.centerYAnchor.constraint(equalTo: centerYAnchor)
-            ])
-        } else {
-            // Measurements: right-aligned to the header's edge, with room for the ranking bar on the left.
-            if let bar {
-                addSubview(bar)
-                NSLayoutConstraint.activate([
-                    bar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6), bar.widthAnchor.constraint(equalToConstant: 28),
-                    bar.heightAnchor.constraint(equalToConstant: 3), bar.centerYAnchor.constraint(equalTo: centerYAnchor)
-                ])
-            }
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: key == "pid" ? 6 : 38),
-                label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-                label.centerYAnchor.constraint(equalTo: centerYAnchor)
-            ])
-        }
+        if let icon { addSubview(icon); imageView = icon }
+        if let bar { addSubview(bar) }
+    }
+
+    /// These cells have fixed-height text and fixed-size icons/meters. Direct
+    /// frames avoid a constraint solver for every visible numeric reading.
+    override func layout() {
+        super.layout()
+        // NSTextField's anchors exclude its horizontal text inset. Match that
+        // alignment rect so direct frames keep the same text edges as before.
+        let insets = label.alignmentRectInsets
+        label.frame = NSRect(x: labelLeading - insets.left, y: (bounds.height - labelHeight) / 2,
+                             width: max(0, bounds.width - labelLeading - 4 + insets.left + insets.right), height: labelHeight)
+        icon?.frame = NSRect(x: 2, y: (bounds.height - 16) / 2, width: 16, height: 16)
+        bar?.frame = NSRect(x: 6, y: (bounds.height - 3) / 2, width: 28, height: 3)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// Plain value. Missing measurements read as a tertiary dash; quiet values as secondary.
     func show(_ value: String, quiet: Bool = false) {
         measurement = nil
-        if renderedKey != "" {
+        if renderedGroup != nil {
             // Coming back from an attributed group title: restore the column's plain type.
-            renderedKey = ""; label.font = baseFont; label.stringValue = value
+            renderedGroup = nil; label.font = baseFont; label.stringValue = value
         } else if label.stringValue != value { label.stringValue = value }
         let color: NSColor = value == "—" ? .tertiaryLabelColor : quiet ? .secondaryLabelColor : .labelColor
         if label.textColor != color { label.textColor = color }
@@ -178,13 +172,11 @@ enum CellMeasurement: Equatable {
     /// Application name with its member count set smaller and quieter, rebuilt only when either changes.
     /// A single-process application shows just its name; the disclosure triangle already says it has members.
     func showGroup(_ title: String, count: Int) {
-        let key = "\(title)\u{0}\(count)"
-        guard renderedKey != key else { return }
-        renderedKey = key
-        let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingMiddle
-        let text = NSMutableAttributedString(string: title, attributes: [.font: TableKit.groupFont, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph])
+        guard renderedGroup?.title != title || renderedGroup?.count != count else { return }
+        renderedGroup = (title, count)
+        let text = NSMutableAttributedString(string: title, attributes: TableKit.groupAttributes)
         if count > 1 {
-            text.append(NSAttributedString(string: "  \(count) processes", attributes: [.font: TableKit.countFont, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: paragraph]))
+            text.append(NSAttributedString(string: "  \(count) processes", attributes: TableKit.countAttributes))
         }
         label.attributedStringValue = text
     }

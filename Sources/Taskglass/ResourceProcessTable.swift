@@ -101,7 +101,8 @@ struct ResourceProcessTable: NSViewRepresentable {
             }
             while roots.count < families.count { roots.append(spareRoots.popLast() ?? RootSlot()) }
             for (slot, family) in zip(roots, families) { slot.show(family) }
-            maximum = max(1e-9, roots.lazy.compactMap { $0.value(key) }.max() ?? 1)
+            // Families are already ranked by this measurement.
+            maximum = max(1e-9, families.first?.value(key) ?? 1)
             // Expansion is remembered across re-ranks and brief absences, but not for every app ever opened.
             if expandedIDs.count > 64 { expandedIDs.formIntersection(roots.map(\.contentID)) }
 
