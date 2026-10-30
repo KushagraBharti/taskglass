@@ -1,7 +1,18 @@
 import Foundation
 
 struct ProcessFamily: Equatable {
-    let id: String
+    private enum Identity: Equatable {
+        case named(String)
+        case process(Int32, UInt64)
+        var text: String {
+            switch self {
+            case .named(let value): value
+            case .process(let pid, let birth): "pid:\(pid):\(birth)"
+            }
+        }
+    }
+    private let identity: Identity
+    var id: String { identity.text }
     let name: String
     let members: ProcessMembers
     let application: Bool
@@ -24,7 +35,17 @@ struct ProcessFamily: Equatable {
         self.init(id: id, name: name, members: ProcessMembers(members), application: application)
     }
     init(id: String, name: String, members: ProcessMembers, application: Bool) {
-        self.id = id; self.name = name; self.members = members; self.application = application
+        self.init(identity: .named(id), name: name, members: members, application: application)
+    }
+    init(process: ProcessRow, members: ProcessMembers) {
+        identity = .process(process.id, process.birth); name = process.name
+        self.members = members; application = false
+        gpu = process.gpuTime; neuralMemory = process.neuralMemory
+        ane = process.aneGroup == nil ? nil : process.aneGroupTime
+        cpu = process.cpu; memory = process.footprint; read = process.readRate; write = process.writeRate
+    }
+    private init(identity: Identity, name: String, members: ProcessMembers, application: Bool) {
+        self.identity = identity; self.name = name; self.members = members; self.application = application
         if members.count == 1, let row = members.first {
             gpu = row.gpuTime; neuralMemory = row.neuralMemory
             ane = row.aneGroup == nil ? nil : row.aneGroupTime
@@ -51,6 +72,16 @@ struct ProcessFamily: Equatable {
         }
         self.gpu = gpu; self.neuralMemory = neuralMemory; self.ane = ane
         self.cpu = cpu; self.memory = memory; self.read = read; self.write = write
+    }
+    /// Named app/resource groups retain their existing ordering. Individual
+    /// ties use numeric PID/birth order without allocating a display identity.
+    func precedesOnTie(_ other: ProcessFamily) -> Bool {
+        switch (identity, other.identity) {
+        case (.named(let a), .named(let b)): a < b
+        case (.process(let a, let ab), .process(let b, let bb)): a == b ? ab < bb : a < b
+        case (.named, .process): true
+        case (.process, .named): false
+        }
     }
     func value(_ key: String) -> Double? { value(ProcessSortKey(rawValue: key) ?? .cpu) }
     func value(_ key: ProcessSortKey) -> Double? {
@@ -101,7 +132,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
     families.reserveCapacity(individuals.count + buckets.count)
     for index in individuals {
         let row = rows[index]
-        families.append(ProcessFamily(id: "pid:\(row.id):\(row.birth)", name: row.name, members: ProcessMembers(source: rows, index: index), application: false))
+        families.append(ProcessFamily(process: row, members: ProcessMembers(source: rows, index: index)))
     }
     for (groupKey, bucket) in buckets {
         var order = bucket.members
@@ -125,7 +156,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
     families.sort {
         let a = $0.value(valueKey) ?? -1, b = $1.value(valueKey) ?? -1
         if a != b { return a > b }
-        return $0.id < $1.id
+        return $0.precedesOnTie($1)
     }
     return families
 }

@@ -104,7 +104,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             // Families are already ranked by this measurement.
             maximum = max(1e-9, families.first?.value(key) ?? 1)
             // Expansion is remembered across re-ranks and brief absences, but not for every app ever opened.
-            if expandedIDs.count > 64 { expandedIDs.formIntersection(roots.map(\.contentID)) }
+            if expandedIDs.count > 64 { expandedIDs.formIntersection(roots.lazy.filter(\.expandable).map(\.contentID)) }
 
             if needsReload || grouped != previousGrouped || (key == "ane") != (previousKey == "ane") {
                 // Grouping changes every row's shape; one reload, then expansion follows identity.

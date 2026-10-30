@@ -157,3 +157,11 @@ Release packaging now uses SwiftPM full LTO alongside -Osize. Current signed exe
 The LTO accounting/sampling check passed counter units, PID/client resets, coalition deduplication, CPU busy fixture and termination identity guards. Alternating inspector profiles showed 0.909/0.964 ms without LTO and 0.895/0.899 with it; no meaningful runtime regression observed in that limited fixture. Scoped LTO app launched and rendered live Overview/CPU correctly. Computer-use subsequently timed out even on inventory, while a 3-second Taskglass stack sample showed normal event-loop waiting and updates, not a hang. Full UI verification remains pending.
 
 Rejected -Oz for C: executable grew 72 bytes, with no measured probe benefit. More aggressive symbol stripping saved only 480 bytes and was also rejected. Direct -lto compiler flags did not cooperate with SwiftPM's object map; its generated bitcode was moved into .build and the supported SwiftPM LTO option used instead. No global installs or published app replacement.
+
+## Pass 22: numeric identities for individual outline rows
+
+Individual process families keep PID/birth as numbers instead of formatting a fresh identity string each sample. Group expansion still uses stable app/coalition strings; pruning ignores individual rows. Single-process families initialize directly from their record. Equal-value individuals now use numeric PID/birth order; named groups retain their previous tie order. Readings, membership and identity text matched the reference, and the 80-cycle native outline fixture passed.
+
+With realistic 16-digit birth values and full LTO, 2,000 ungrouped rows improved CPU 2.234 to 2.007 ms, memory 2.609 to 2.393, GPU 1.815 to 1.540, disk 2.553 to 2.378. At 750 grouped rows savings were smaller (1–5.5%); ANE grouping was roughly unchanged (+0.004 ms). The initial short synthetic birth IDs fit in Swift small strings and regressed 9–13%, so they did not represent the actual allocation being removed.
+
+Rejected a narrower CPU tick-conversion arithmetic fast path. It matched wide random values but saved only ~2 ns per conversion, about 1.5 microseconds per ordinary sample. Retained the existing 128-bit conversion.
