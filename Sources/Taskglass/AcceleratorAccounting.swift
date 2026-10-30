@@ -70,5 +70,5 @@ struct ANEAccounting {
 
 func acceleratorTime(_ value: Double?) -> String {
     guard let value, value.isFinite, value >= 0 else { return "—" }
-    return String(format: "%.1f ms/s", value)
+    return decimal(value, places: 1) + " ms/s"
 }

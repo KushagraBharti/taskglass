@@ -265,11 +265,11 @@ func bytes(_ value: UInt64) -> String {
     let units = ["B", "KB", "MB", "GB", "TB"]
     var amount = Double(value), index = 0
     while amount >= 1024 && index < units.count - 1 { amount /= 1024; index += 1 }
-    return String(format: amount >= 100 || index == 0 ? "%.0f %@" : "%.1f %@", amount, units[index])
+    return decimal(amount, places: amount >= 100 || index == 0 ? 0 : 1) + " " + units[index]
 }
 func percent(_ value: Double?) -> String {
     guard let value, value.isFinite else { return "—" }
-    return String(format: "%.1f%%", value)
+    return decimal(value, places: 1) + "%"
 }
 func rate(_ value: Double?) -> String {
     guard let value, value.isFinite, value >= 0, value < Double(UInt64.max) else { return "—" }

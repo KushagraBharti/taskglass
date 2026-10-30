@@ -307,14 +307,15 @@ struct PerformanceWorkspace: View {
                                 Stat("Cycles", h.batteryCycles > 0 ? String(h.batteryCycles) : "—"),
                                 Stat("Full / design capacity", percent(h.batteryCapacityRatio), help: "May differ from Apple's battery-health estimate"),
                                 Stat("Temperature", temperature(h.batteryTemperature)),
-                                Stat("Voltage", h.batteryVoltage.map { String(format: "%.2f V", $0) } ?? "—")]) {
+                                Stat("Voltage", h.batteryVoltage.map { decimal($0, places: 2) + " V" } ?? "—")]) {
             EmptyView()
         }
     }
     func duration(_ minutes: Double?) -> String {
         guard let minutes, minutes >= 0 else { return "—" }
         let total = Int(minutes.rounded())
-        return total < 60 ? "\(total) min" : "\(total / 60) h \(String(format: "%02d", total % 60)) min"
+        let remainder = total % 60
+        return total < 60 ? "\(total) min" : "\(total / 60) h \(remainder < 10 ? "0" : "")\(remainder) min"
     }
 
     // MARK: Temperatures

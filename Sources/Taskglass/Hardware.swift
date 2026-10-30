@@ -8,8 +8,8 @@ func cText<T>(_ value: T) -> String {
     }
 }
 func measured(_ value: Double) -> Double? { value.isFinite ? value : nil }
-func watts(_ value: Double?) -> String { value.map { String(format: "%.2f W", $0) } ?? "—" }
-func temperature(_ value: Double?) -> String { value.map { String(format: "%.0f°C", $0) } ?? "—" }
+func watts(_ value: Double?) -> String { value.map { decimal($0, places: 2) + " W" } ?? "—" }
+func temperature(_ value: Double?) -> String { value.map { decimal($0, places: 0) + "°C" } ?? "—" }
 
 struct TemperatureReading: Identifiable, Sendable, Equatable {
     let id: String

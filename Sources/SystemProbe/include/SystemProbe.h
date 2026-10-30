@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include "MetricFormatting.h"
 typedef struct {
  int32_t pid, parent; uint32_t uid; uint64_t birth, cpu, resident, footprint, disk_read, disk_write;
  uint32_t threads; int footprint_valid; char name[64];

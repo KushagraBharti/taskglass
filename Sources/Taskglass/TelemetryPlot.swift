@@ -27,7 +27,7 @@ enum PlotUnit {
     }
     private func trimmed(_ value: Double) -> String {
         let rounded = (value * 10).rounded() / 10
-        return rounded == rounded.rounded() ? String(format: "%.0f", rounded) : String(format: "%.1f", rounded)
+        return decimal(rounded, places: rounded == rounded.rounded() ? 0 : 1)
     }
     private func axisBytes(_ value: Double) -> String {
         let units = ["B", "KB", "MB", "GB", "TB"]
@@ -331,7 +331,7 @@ struct CoreTileMap: NSViewRepresentable {
                 let label = labels[position] as NSString
                 let labelSize = label.size(withAttributes: labelAttributes)
                 label.draw(at: NSPoint(x: rect.minX + 7, y: rect.midY - labelSize.height / 2), withAttributes: labelAttributes)
-                let value = String(format: "%.0f", usage) as NSString
+                let value = decimal(usage, places: 0) as NSString
                 let valueSize = value.size(withAttributes: valueAttributes)
                 value.draw(at: NSPoint(x: rect.maxX - 7 - valueSize.width, y: rect.midY - valueSize.height / 2), withAttributes: valueAttributes)
             }

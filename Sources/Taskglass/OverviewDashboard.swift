@@ -155,7 +155,7 @@ struct OverviewDashboard: View {
     /// One decimal for the legend so all three names fit; the total keeps two.
     static func legendPower(_ value: Double?) -> String {
         guard let value, value.isFinite else { return "—" }
-        return abs(value) < 1 ? String(format: "%.0f mW", value * 1000) : String(format: "%.1f W", value)
+        return abs(value) < 1 ? decimal(value * 1000, places: 0) + " mW" : decimal(value, places: 1) + " W"
     }
     func inlineHistory(_ series: MetricSeries, tint: Color) -> some View {
         let scale = monitor.temperatureScale

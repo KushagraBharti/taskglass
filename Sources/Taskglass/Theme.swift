@@ -70,9 +70,9 @@ extension Font {
 /// Power formatting shared by every pane: milliwatts below 1 W.
 func power(_ value: Double?) -> String {
     guard let value, value.isFinite else { return "—" }
-    return abs(value) < 1 ? String(format: "%.0f mW", value * 1000) : String(format: "%.2f W", value)
+    return abs(value) < 1 ? decimal(value * 1000, places: 0) + " mW" : decimal(value, places: 2) + " W"
 }
-func rpm(_ value: Double?) -> String { value.map { String(format: "%.0f rpm", $0) } ?? "—" }
+func rpm(_ value: Double?) -> String { value.map { decimal($0, places: 0) + " rpm" } ?? "—" }
 
 /// Installed memory as marketed, e.g. "48 GB", rather than "48.0 GB".
 func memoryCapacity(_ total: UInt64) -> String { "\(Int((Double(total) / 1_073_741_824).rounded())) GB" }
@@ -85,7 +85,7 @@ func batteryFlow(_ watts: Double?) -> (label: String, value: String) {
     return ("Net power", power(0))
 }
 
-func iops(_ value: Double?) -> String { value.map { String(format: "%.0f/s", $0) } ?? "—" }
+func iops(_ value: Double?) -> String { value.map { decimal($0, places: 0) + "/s" } ?? "—" }
 
 /// "3 minutes", "1 minute", "30 seconds" for the shared history window.
 func windowName(_ seconds: Double) -> String {
