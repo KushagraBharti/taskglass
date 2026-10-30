@@ -165,3 +165,9 @@ Individual process families keep PID/birth as numbers instead of formatting a fr
 With realistic 16-digit birth values and full LTO, 2,000 ungrouped rows improved CPU 2.234 to 2.007 ms, memory 2.609 to 2.393, GPU 1.815 to 1.540, disk 2.553 to 2.378. At 750 grouped rows savings were smaller (1–5.5%); ANE grouping was roughly unchanged (+0.004 ms). The initial short synthetic birth IDs fit in Swift small strings and regressed 9–13%, so they did not represent the actual allocation being removed.
 
 Rejected a narrower CPU tick-conversion arithmetic fast path. It matched wide random values but saved only ~2 ns per conversion, about 1.5 microseconds per ordinary sample. Retained the existing 128-bit conversion.
+
+## Pass 23: heatmap rectangle batches
+
+Merged touching or overlapping cells of the same shade and core row without crossing a geometric gap. The renderer now submits those rectangle batches to the current drawing context rather than allocating eight intermediate paths. Pixel output matched at 1x/2x for dense/narrow layouts, missing/nonfinite cores, restarts and gaps. Full geometry-plus-2x-raster timing for 601 samples/18 cores improved 3.754 to 3.191 ms with rapidly changing values, and 3.419 to 1.839 ms with mostly idle values. The latter reduced cells from 10,139 to 714. These are isolated renderer measurements, not whole-app CPU claims. Short-history improvements were smaller. Release build passed.
+
+Direct CGContext.fill(rects) changed a few antialiased edge pixels; retained addRects + fillPath, which matched exactly.

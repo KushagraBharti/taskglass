@@ -1,19 +1,21 @@
 import CoreGraphics
 
 /// Every core shares the time axis. Calculate a sample's horizontal span once,
-/// then append its core cells to the eight load-level paths.
+/// then batch its core cells by the eight load levels.
 struct HeatmapGeometry {
-    let track: CGPath
-    let levels: [CGPath]
+    let track: [CGRect]
+    let levels: [[CGRect]]
 
     init(points: [Point], indices: [Int], window: Double, plotWidth: CGFloat,
          labelWidth: CGFloat, rowHeight: CGFloat, rowStep: CGFloat) {
-        let track = CGMutablePath()
+        var track: [CGRect] = []
+        track.reserveCapacity(indices.count)
         var cells = Array(repeating: [CGRect](), count: 8)
-        self.track = track
+        var lastCells = [Int](repeating: -1, count: indices.count * 8)
         for row in indices.indices {
-            track.addRect(CGRect(x: labelWidth, y: CGFloat(row) * rowStep, width: plotWidth, height: rowHeight))
+            track.append(CGRect(x: labelWidth, y: CGFloat(row) * rowStep, width: plotWidth, height: rowHeight))
         }
+        self.track = track
         guard let end = points.last?.time, window > 0 else { levels = []; return }
         for (position, sample) in points.enumerated() {
             let age = end - sample.time
@@ -28,13 +30,18 @@ struct HeatmapGeometry {
                 let usage = sample.cores[index]
                 guard usage.isFinite else { continue }
                 let level = min(7, Int(min(99.9, max(0, usage)) / 12.5))
-                cells[level].append(CGRect(x: x, y: CGFloat(row) * rowStep, width: width, height: rowHeight))
+                let lane = level * indices.count + row
+                let previous = lastCells[lane]
+                // All cells in this lane have the same height, y and shade.
+                // Union touching/overlapping intervals without bridging a gap.
+                if previous >= 0, x >= cells[level][previous].minX, x <= cells[level][previous].maxX {
+                    cells[level][previous].size.width = max(cells[level][previous].maxX, x + width) - cells[level][previous].minX
+                } else {
+                    lastCells[lane] = cells[level].count
+                    cells[level].append(CGRect(x: x, y: CGFloat(row) * rowStep, width: width, height: rowHeight))
+                }
             }
         }
-        levels = cells.map { rects in
-            let path = CGMutablePath()
-            path.addRects(rects)
-            return path
-        }
+        levels = cells
     }
 }

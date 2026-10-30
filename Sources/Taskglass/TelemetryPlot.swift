@@ -198,7 +198,7 @@ struct TimeAxis: View {
 // MARK: Native core renderers
 
 /// Per-core utilization history. Cells are bucketed into eight opacity levels so each draw
-/// fills about eight paths per cluster, regardless of history length.
+/// fills about eight rectangle batches per cluster, regardless of history length.
 struct CoreHeatmap: NSViewRepresentable {
     static let rowHeight: CGFloat = 12, rowGap: CGFloat = 5
     static let labelWidth: CGFloat = 34, valueWidth: CGFloat = 52
@@ -268,10 +268,10 @@ struct CoreHeatmap: NSViewRepresentable {
             guard let context = NSGraphicsContext.current?.cgContext else { return }
             context.saveGState()
             context.setFillColor(Self.trackColor)
-            context.addPath(geometry.track); context.fillPath()
-            for (level, path) in geometry.levels.enumerated() where !path.isEmpty {
+            context.addRects(geometry.track); context.fillPath()
+            for (level, rects) in geometry.levels.enumerated() where !rects.isEmpty {
                 context.setFillColor(levelColors[level])
-                context.addPath(path); context.fillPath()
+                context.addRects(rects); context.fillPath()
             }
             context.restoreGState()
         }
