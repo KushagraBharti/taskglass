@@ -2,7 +2,7 @@
 
 ## Toolchain and scope
 
-Taskglass targets macOS 14+ on ARM64 with Swift 6.2 or newer. Development used macOS 27.0.1, Swift 6.4 and Command Line Tools on an M5 Pro. No software was installed for this project. Swift/Clang, iconutil, codesign, ditto and hdiutil are Apple tools already on the build machine. Optional measurement scripts use Python's standard library.
+Taskglass targets macOS 14+ on ARM64 with Swift 6.0 or newer. Development used macOS 27.0.1, Swift 6.4 and Command Line Tools on an M5 Pro. No software was installed for this project. Swift/Clang, iconutil, codesign, ditto and hdiutil are Apple tools already on the build machine. Optional measurement scripts use Python's standard library.
 
 The app has no package dependencies, web view, privileged helper, daemon, login item or updater service. It does not collect analytics or make monitoring network requests. Help-menu links open the user's browser only when clicked.
 
@@ -55,3 +55,5 @@ For diagnostics only, launch with `--profile-events` and redirect stderr under `
 ## Build-engine verification
 
 On the development Swift 6.4 Command Line Tools, the default swiftbuild engine compiled with SDK 27 but recorded SDK 14 in LC_BUILD_VERSION. An identical native-engine build recorded minimum OS 14 and SDK 27 correctly. The build script selects `--build-system native` for the preview. Swift 6.4 warns that this engine is deprecated, so this workaround needs revisiting when the upstream engine is corrected or native support is removed. CI uses Swift toolchains supplied by its standard macOS runners.
+
+The first CI pass found that the macOS 15 runner has Swift 6.1. Core tests passed, but an unnecessary tools-version 6.2 manifest requirement blocked the app build. The manifest now requires Swift 6.0; no 6.2-only manifest API is used. Release validation still requires SDK 26+ metadata.

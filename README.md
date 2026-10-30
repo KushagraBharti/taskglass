@@ -24,7 +24,7 @@ gh attestation verify Taskglass-0.1.0-arm64-unsigned.dmg --repo KushagraBharti/t
 
 ## Build from source
 
-Requires Apple silicon, macOS 14+, and Swift 6.2+ with a current Apple macOS SDK. Xcode 26 or current Command Line Tools work; full Xcode is not required. The released app needs no developer tools.
+Requires Apple silicon, macOS 14+, and Swift 6.0+ with an Apple macOS SDK supporting macOS 14. Xcode or Command Line Tools work; full Xcode is not required. Release artifacts use SDK 26 or newer for current native macOS controls. The released app needs no developer tools.
 
 ```sh
 git clone https://github.com/KushagraBharti/taskglass.git
