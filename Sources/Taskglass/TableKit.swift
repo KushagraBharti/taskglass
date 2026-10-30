@@ -213,32 +213,70 @@ enum CellMeasurement: Equatable {
 
 /// App bundle icons, looked up once per bundle. Non-app executables share the generic icon.
 @MainActor enum ProcessIcons {
-    private static var cache: [String: NSImage] = [:]
-    static let executable: NSImage = thumbnail(NSWorkspace.shared.icon(for: .unixExecutable))
-    /// Uses the sampler's cached outer-app identity, the same one that groups processes.
+    private static let listCache = IconCache(capacity: 256, pointSize: 16)
+    private static let inspectorCache = IconCache(capacity: 16, pointSize: 40)
+    static let executable = thumbnail(NSWorkspace.shared.icon(for: .unixExecutable), pointSize: 16)
+    private static let inspectorExecutable = thumbnail(NSWorkspace.shared.icon(for: .unixExecutable), pointSize: 40)
+
+    /// Lists use 16 pt icons; only inspected applications need an 80-pixel bitmap.
     static func icon(for row: ProcessRow) -> NSImage { row.application.map { icon(forBundle: $0.path) } ?? executable }
-    static func icon(forBundle path: String) -> NSImage {
-        if let image = cache[path] { return image }
-        let image = thumbnail(NSWorkspace.shared.icon(forFile: path))
-        if cache.count >= 256 { cache.removeAll(keepingCapacity: true) }
-        cache[path] = image
-        return image
+    static func icon(forBundle path: String) -> NSImage { listCache.image(for: path) }
+    static func inspectorIcon(for row: ProcessRow) -> NSImage {
+        row.application.map { inspectorCache.image(for: $0.path) } ?? inspectorExecutable
     }
-    /// Keep only the largest size used by the UI (40 pt at 2x), not every
-    /// representation of another app's icon. 256 cached bitmaps use at most
-    /// about 6.3 MiB of pixel data, including icons inspected after scrolling.
-    private static func thumbnail(_ source: NSImage) -> NSImage {
-        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 80, pixelsHigh: 80,
+
+    /// Bounded second-chance cache. A new app evicts one cold icon instead of
+    /// clearing every cached icon and forcing a burst of file-system lookups.
+    @MainActor private final class IconCache {
+        private struct Entry { let image: NSImage; let slot: Int }
+        private let capacity: Int
+        private let pointSize: CGFloat
+        private var entries: [String: Entry] = [:]
+        private var paths: [String] = []
+        private var referenced: [Bool] = []
+        private var hand = 0
+
+        init(capacity: Int, pointSize: CGFloat) {
+            self.capacity = capacity; self.pointSize = pointSize
+        }
+        func image(for path: String) -> NSImage {
+            if let entry = entries[path] {
+                referenced[entry.slot] = true
+                return entry.image
+            }
+            let image = thumbnail(NSWorkspace.shared.icon(forFile: path), pointSize: pointSize)
+            let slot: Int
+            if paths.count < capacity {
+                slot = paths.count; paths.append(path); referenced.append(true)
+            } else {
+                while referenced[hand] {
+                    referenced[hand] = false; hand = (hand + 1) % capacity
+                }
+                slot = hand
+                entries.removeValue(forKey: paths[slot])
+                paths[slot] = path; referenced[slot] = true
+                hand = (hand + 1) % capacity
+            }
+            entries[path] = Entry(image: image, slot: slot)
+            return image
+        }
+    }
+
+    /// Retain only the 2x bitmap used by this UI. The two bounded caches hold
+    /// about 1.4 MiB of pixels together, instead of 6.3 MiB of 40 pt icons.
+    private static func thumbnail(_ source: NSImage, pointSize: CGFloat) -> NSImage {
+        let pixels = Int(pointSize * 2)
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 320, bitsPerPixel: 32),
+            colorSpaceName: .deviceRGB, bytesPerRow: pixels * 4, bitsPerPixel: 32),
             let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return source }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
         context.imageInterpolation = .high
-        source.draw(in: NSRect(x: 0, y: 0, width: 80, height: 80), from: .zero,
+        source.draw(in: NSRect(x: 0, y: 0, width: pixels, height: pixels), from: .zero,
                     operation: .copy, fraction: 1)
         NSGraphicsContext.restoreGraphicsState()
-        let image = NSImage(size: NSSize(width: 40, height: 40))
+        let image = NSImage(size: NSSize(width: pointSize, height: pointSize))
         image.addRepresentation(bitmap)
         return image
     }

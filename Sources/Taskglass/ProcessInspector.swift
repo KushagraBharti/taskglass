@@ -40,7 +40,7 @@ struct ProcessInspector: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .center, spacing: 12) {
-                        Image(nsImage: ProcessIcons.icon(for: row)).resizable().interpolation(.high)
+                        Image(nsImage: ProcessIcons.inspectorIcon(for: row)).resizable().interpolation(.high)
                             .frame(width: 40, height: 40).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.name).font(.system(size: 14, weight: .semibold)).lineLimit(2).textSelection(.enabled)
