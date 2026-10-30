@@ -109,7 +109,9 @@ struct ResourceProcessTable: NSViewRepresentable {
             if needsReload || grouped != previousGrouped || (key == "ane") != (previousKey == "ane") {
                 // Grouping changes every row's shape; one reload, then expansion follows identity.
                 table.reloadData()
-                for slot in roots {
+                for (index, slot) in roots.enumerated() {
+                    let wasExpandable = index < delivered.count && delivered[index].expandable
+                    guard slot.expandable || wasExpandable else { continue }
                     let want = wantsExpansion(slot)
                     if table.isItemExpanded(slot) != want { if want { table.expandItem(slot) } else { table.collapseItem(slot) } }
                     if want { reconcileChildren(slot) }
@@ -122,8 +124,11 @@ struct ResourceProcessTable: NSViewRepresentable {
                 // Only slots whose shape changed are touched: an expanded application that moved rank,
                 // a group that gained or lost members, or a row that became or stopped being a group.
                 for (index, slot) in roots.enumerated() {
-                    let want = wantsExpansion(slot), expanded = table.isItemExpanded(slot)
                     let known = index < oldCount ? delivered[index] : nil
+                    // An individual row cannot expand. Avoid querying AppKit's
+                    // tree unless this slot is, or was, an application group.
+                    guard slot.expandable || known?.expandable == true else { continue }
+                    let want = wantsExpansion(slot), expanded = table.isItemExpanded(slot)
                     if expanded && !want { table.collapseItem(slot) }
                     // Refresh the disclosure triangle before any expansion, which depends on it.
                     if let known, known.expandable != slot.expandable { table.reloadItem(slot, reloadChildren: false) }
@@ -185,7 +190,7 @@ struct ResourceProcessTable: NSViewRepresentable {
             if let selectedIdentity {
                 for slot in roots {
                     if slot.selectionIdentity == selectedIdentity { target = slot; break }
-                    if table.isItemExpanded(slot), let child = slot.child(matching: selectedIdentity) { target = child; break }
+                    if slot.expandable, table.isItemExpanded(slot), let child = slot.child(matching: selectedIdentity) { target = child; break }
                 }
             }
             let row = target.map { table.row(forItem: $0) } ?? -1

@@ -195,3 +195,7 @@ Combined columns that use the same key representation so key selection happens o
 ## Pass 28: reuse core tile drawing objects
 
 Core tiles keep their rounded paths, fixed label measurements and last rendered value/color. Resizing or topology changes rebuild the affected geometry; changing utilization refreshes the value. Exact raster comparison passed at 1x/2x, different widths/core counts, empty placeholders and nonfinite inputs. An 18-core draw improved 0.938 to 0.793 ms with mostly idle cores and 0.959 to 0.892 ms when every core changed. The small caches live with the view. Release build passed.
+
+## Pass 29: skip impossible outline expansion work
+
+The outline queries AppKit expansion state only for slots that are or were groups. Individual selection searches also skip those queries. The native viewport fixture improved ungrouped 1,000-row updates from 0.428 to 0.400 ms; grouped updates were essentially unchanged. Expansion, collapse, helper selection and regrouping passed the existing 80-cycle native check. An initial fixture omitted the enclosing scroll view and accidentally refreshed all rows; corrected that before using the timing.
