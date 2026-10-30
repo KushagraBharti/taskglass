@@ -25,7 +25,6 @@ import Observation
     var rows: [ProcessRow] = []
     var sensorScope = "All" { didSet { preferences.save(sensorScope, for: "sensorScope") } }
     var inspect = false
-    var page = 1
     var pane: ResourcePane? = .overview
     var historySeconds = 60.0 { didSet { if [60.0, 180, 600].contains(historySeconds) { preferences.save(historySeconds, for: "historySeconds") } } }
     var overviewProcesses: [ProcessRow] = []
@@ -84,7 +83,6 @@ import Observation
     var selectedProcessRecord: ProcessRow? { selection ?? trackedProcess }
     func activatePane(_ target: ResourcePane) {
         if pane != target { pane = target }
-        page = target == .processes ? 0 : 1
         if target == .processes { resourceLeaders = []; overviewProcesses = []; arrange() }
         else {
             showingInspector = false; rows = []; nameOrder.reset()
@@ -135,9 +133,9 @@ import Observation
                     await sampler.reset()
                     needsBaselineReset = false
                 }
-                let gpu = (page == 0 && (showGPU || sort == "gpu" || showingInspector)) || pane == .gpu || (page != 0 && resourceSort == "gpu")
-                let ane = pane == .neural || (page != 0 && resourceSort == "ane") || (page == 0 && showingInspector)
-                let collect = gpu || ane || page == 0 || [.cpu, .memory, .storage].contains(pane) || overviewTick % 3 == 0
+                let gpu = (pane == .processes && (showGPU || sort == "gpu" || showingInspector)) || pane == .gpu || (pane != .processes && resourceSort == "gpu")
+                let ane = pane == .neural || (pane != .processes && resourceSort == "ane") || (pane == .processes && showingInspector)
+                let collect = gpu || ane || pane == .processes || [.cpu, .memory, .storage].contains(pane) || overviewTick % 3 == 0
                 overviewTick += 1
                 let next = await sampler.read(includeProcesses: collect, includeHardware: true, includeSensorDetails: pane == .temperatures, includeGPU: gpu, includeANE: ane)
                 guard !Task.isCancelled else { return }
@@ -206,9 +204,9 @@ import Observation
             if threadCount != sampledThreadCount { threadCount = sampledThreadCount }
             resourceSampleDate = lastProcessSampleDate
             if pane == .overview || pane == nil { overviewProcesses = rankedProcesses(resourceSample, key: "cpu", limit: 5) }
-            else if page != 0 { rankResources() }
+            else if pane != .processes { rankResources() }
         }
-        if page == 0 { arrange() }
+        if pane == .processes { arrange() }
     }
     // The native outline sorts app families and their children itself. Keep one shared
     // source array here, rather than sorting a second full copy on every sample.

@@ -3,7 +3,7 @@ import AppKit
 
 struct SamplingConfiguration: Equatable {
     let inactive: Bool
-    let page: Int
+    let processTable: Bool
     let interval: Double
     let sensorDetails: Bool
 }
@@ -20,7 +20,7 @@ struct SamplingConfiguration: Equatable {
                 .frame(minWidth: 1000, minHeight: 660)
                 .task(id: SamplingConfiguration(
                     inactive: monitor.paused || !monitor.visible,
-                    page: monitor.page,
+                    processTable: monitor.pane == .processes,
                     interval: monitor.interval,
                     sensorDetails: monitor.pane == .temperatures
                 )) {

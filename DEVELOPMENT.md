@@ -57,3 +57,16 @@ For diagnostics only, launch with `--profile-events` and redirect stderr under `
 On the development Swift 6.4 Command Line Tools, the default swiftbuild engine compiled with SDK 27 but recorded SDK 14 in LC_BUILD_VERSION. An identical native-engine build recorded minimum OS 14 and SDK 27 correctly. The build script selects `--build-system native` for the preview. Swift 6.4 warns that this engine is deprecated, so this workaround needs revisiting when the upstream engine is corrected or native support is removed. CI uses Swift toolchains supplied by its standard macOS runners.
 
 The first CI pass found that the macOS 15 runner has Swift 6.1. Core tests passed, but an unnecessary tools-version 6.2 manifest requirement blocked the app build. The manifest now requires Swift 6.0; no 6.2-only manifest API is used. Release validation still requires SDK 26+ metadata.
+
+## Source layout
+
+- `Sources/Taskglass/App`: entry point and preferences.
+- `Sources/Taskglass/Monitoring`: sampling, hardware, accounting and lifecycle.
+- `Sources/Taskglass/Processes`: ordering, grouping and native process tables.
+- `Sources/Taskglass/Charts`: histories, scales and drawing.
+- `Sources/Taskglass/UI`: screens, inspector and shared presentation components.
+- `Sources/SystemProbe`: C interfaces to macOS counters.
+- `Tests/TaskglassTests`: correctness and lifecycle checks; `Tests/Fixtures`: bounded workloads and probe tools.
+- `scripts/lib/check-build.sh`: shared source lists and compiler options for standalone checks.
+
+The selected pane is the single navigation state; the redundant numeric page flag has been removed. SwiftPM discovers Swift files recursively. No generated code belongs in Sources.

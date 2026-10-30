@@ -88,7 +88,7 @@ struct ContentView: View {
         }
         .onChange(of: monitor.scope) { monitor.arrange() }
         // No re-rank on a ranking change: resourceLeaders is an unsorted source the outline orders itself.
-        // The monitor sets the page, restores this pane's remembered ranking and loads its rows.
+        // Restore this pane's remembered ranking and load its rows.
         .onChange(of: monitor.pane) { monitor.activatePane(pane) }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didMiniaturizeNotification)) { _ in monitor.visible = false }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didDeminiaturizeNotification)) { _ in monitor.visible = true }
