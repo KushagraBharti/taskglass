@@ -22,7 +22,10 @@ struct OverviewDashboard: View {
                 Band {
                     temperatures
                     fans.leadingKeyline()
-                    if h.batteryPresent { battery.leadingKeyline() }
+                    if h.batteryPresent {
+                        OverviewBattery(monitor: monitor, charge: h.batteryPercent, watts: h.batteryWatts, state: h.batteryState)
+                            .equatable().leadingKeyline()
+                    }
                     chipPower.leadingKeyline()
                 }
                 Band {
@@ -31,9 +34,9 @@ struct OverviewDashboard: View {
                 }
                 Band {
                     cores
-                    processes.leadingKeyline()
+                    OverviewProcesses(monitor: monitor).leadingKeyline()
                 }
-                footer.padding(.top, 4)
+                OverviewFooter(monitor: monitor).padding(.top, 4)
             }
             .padding(Metrics.pagePadding)
             .frame(maxWidth: Metrics.contentWidth)
@@ -53,17 +56,6 @@ struct OverviewDashboard: View {
             StatusIndicator(label: "Thermal state", state: thermalStateName, tint: thermalStateColor)
         }
     }
-    var footer: some View {
-        HStack(spacing: 6) {
-            Circle().fill(monitor.paused ? Color.orange : Color.green).frame(width: 6, height: 6).accessibilityHidden(true)
-            Text(monitor.paused ? "Paused" : "Live, every \(Int(monitor.interval)) s")
-            Spacer(minLength: 12)
-            Text("Charts show the last \(windowName(window))")
-        }
-        .font(.caption11).foregroundStyle(.secondary).lineLimit(1)
-        .help("Temperatures, fans and battery refresh every 10 seconds")
-    }
-
     // MARK: Resource band
 
     func resource(_ pane: ResourcePane, value: String, detail: (full: String, short: String), ceiling: Double, first: Bool = false) -> some View {
@@ -100,19 +92,6 @@ struct OverviewDashboard: View {
             VStack(alignment: .leading, spacing: 8) {
                 CellHeader("Fans", icon: "fan", tint: Palette.fan).padding(.bottom, 4)
                 FanList(hardware: h, labelWidth: Self.environmentLabel).equatable()
-            }
-        }
-    }
-    var battery: some View {
-        let flow = batteryFlow(h.batteryWatts)
-        return BandCellButton(help: "Show battery details", action: { monitor.pane = .battery }) {
-            VStack(alignment: .leading, spacing: 8) {
-                CellHeader("Battery", icon: ResourcePane.battery.icon, tint: Palette.battery) { Text(h.batteryState) }
-                    .padding(.bottom, 4)
-                MeterRow("Charge", value: percent(h.batteryPercent), labelWidth: Self.environmentLabel) {
-                    LevelBar(fraction: h.batteryPercent.map { $0 / 100 }, tint: Palette.battery)
-                }
-                MeterRow(flow.label, value: flow.value, labelWidth: Self.environmentLabel)
             }
         }
     }
@@ -223,52 +202,6 @@ struct OverviewDashboard: View {
             .help("Renderer and tiler measure different stages and overlap; they should not be added")
         }.cellLayout()
     }
-    var processes: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CellHeader("Top processes", icon: ResourcePane.processes.icon, tint: .secondary) {
-                LinkButton("Show all") { openProcesses(selecting: nil) }
-            }.padding(.bottom, 4)
-            processLine(icon: nil, name: Text("Name"), cpu: Text("CPU"), memory: Text("Memory"))
-                .font(.caption11).foregroundStyle(.secondary)
-                .overlay(alignment: .bottom) { Palette.keyline.frame(height: Metrics.hairline).padding(.horizontal, 6) }
-                .accessibilityHidden(true)
-            VStack(spacing: 0) {
-                if monitor.overviewProcesses.isEmpty {
-                    Text("Reading processes").font(.caption11).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading).padding(.horizontal, 6)
-                }
-                ForEach(monitor.overviewProcesses) { process in
-                    Button { openProcesses(selecting: process.id) } label: {
-                        processLine(icon: ProcessIcons.icon(for: process),
-                                    name: Text(process.name).foregroundStyle(.primary),
-                                    cpu: Text(percent(process.cpu)).foregroundStyle(.primary),
-                                    memory: Text(process.footprint.map(bytes) ?? "—").foregroundStyle(process.footprint == nil ? .tertiary : .secondary))
-                            .font(.body12).frame(height: 26).contentShape(Rectangle())
-                    }
-                    .buttonStyle(HoverFillStyle(radius: 5))
-                    .help("Inspect \(process.name) in Processes")
-                    .accessibilityLabel("\(process.name), CPU \(percent(process.cpu)), memory \(process.footprint.map(bytes) ?? "unavailable")")
-                }
-            }.frame(minHeight: 5 * 26, alignment: .top)
-        }.cellLayout()
-    }
-    func processLine(icon: NSImage?, name: Text, cpu: Text, memory: Text) -> some View {
-        HStack(spacing: 8) {
-            Group {
-                if let icon { Image(nsImage: icon).resizable().interpolation(.high) } else { Color.clear }
-            }.frame(width: 16, height: 16).accessibilityHidden(true)
-            name.lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
-            cpu.frame(width: 56, alignment: .trailing)
-            memory.frame(width: 68, alignment: .trailing).padding(.leading, 4)
-        }
-        .monospacedDigit().frame(minHeight: 22).padding(.horizontal, 6)
-    }
-    func openProcesses(selecting id: Int32?) {
-        monitor.sort = "cpu"; monitor.ascending = false
-        if let id { monitor.selected = id; monitor.showingInspector = true }
-        monitor.pane = .processes
-    }
-
     // MARK: Derived values
 
     var cpuCoreCount: Int { h.tier0Count + h.tier1Count > 0 ? h.tier0Count + h.tier1Count : ProcessInfo.processInfo.activeProcessorCount }
@@ -289,3 +222,41 @@ struct OverviewDashboard: View {
 }
 
 func sum(_ a: Double?, _ b: Double?) -> Double? { guard let a, let b else { return nil }; return a + b }
+
+private struct OverviewFooter: View {
+    let monitor: Monitor
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(monitor.paused ? Color.orange : Color.green).frame(width: 6, height: 6).accessibilityHidden(true)
+            Text(monitor.paused ? "Paused" : "Live, every \(Int(monitor.interval)) s")
+            Spacer(minLength: 12)
+            Text("Charts show the last \(windowName(monitor.historySeconds))")
+        }
+        .font(.caption11).foregroundStyle(.secondary).lineLimit(1)
+        .help("Temperatures, fans and battery refresh every 10 seconds")
+    }
+
+}
+
+private struct OverviewBattery: View, Equatable {
+    let monitor: Monitor
+    let charge: Double?
+    let watts: Double?
+    let state: String
+    nonisolated static func == (a: Self, b: Self) -> Bool {
+        a.monitor === b.monitor && a.charge == b.charge && a.watts == b.watts && a.state == b.state
+    }
+    var body: some View {
+        let flow = batteryFlow(watts)
+        return BandCellButton(help: "Show battery details", action: { monitor.pane = .battery }) {
+            VStack(alignment: .leading, spacing: 8) {
+                CellHeader("Battery", icon: ResourcePane.battery.icon, tint: Palette.battery) { Text(state) }
+                    .padding(.bottom, 4)
+                MeterRow("Charge", value: percent(charge), labelWidth: OverviewDashboard.environmentLabel) {
+                    LevelBar(fraction: charge.map { $0 / 100 }, tint: Palette.battery)
+                }
+                MeterRow(flow.label, value: flow.value, labelWidth: OverviewDashboard.environmentLabel)
+            }
+        }
+    }
+}

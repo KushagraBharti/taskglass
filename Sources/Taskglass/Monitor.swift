@@ -77,9 +77,9 @@ import Observation
             preferences.save(1, for: "acceleratorRankingsVersion")
         }
     }
-    // Sampling can continue behind another window. Depend on the presentation
-    // revision, never the private staging buffers, to avoid invisible redraws.
-    var accessibleProcessCount: Int { _ = resourceSampleDate; return resourceSample.count }
+    // Publish these stable totals only when they change. Resource controls do
+    // not need to rebuild for a new sample with the same number of processes.
+    private(set) var accessibleProcessCount = 0
     var selectedProcessRecord: ProcessRow? { selection ?? trackedProcess }
     func activatePane(_ target: ResourcePane) {
         if pane != target { pane = target }
@@ -103,7 +103,7 @@ import Observation
     var showDisk = false { didSet { preferences.save(showDisk, for: "showDisk") } }
     var showUser = false { didSet { preferences.save(showUser, for: "showUser") } }
     @ObservationIgnored private var sampledThreadCount = 0
-    var threadCount: Int { _ = resourceSampleDate; return sampledThreadCount }
+    private(set) var threadCount = 0
     let sampler = Sampler()
     var visible = true
     func arrange() {
@@ -201,6 +201,8 @@ import Observation
         snapshot = next; history = points
         if processHistory.last?.time != selectedSamples.last?.time || processHistory.count != selectedSamples.count { processHistory = selectedSamples }
         if resourceSampleDate != lastProcessSampleDate {
+            if accessibleProcessCount != resourceSample.count { accessibleProcessCount = resourceSample.count }
+            if threadCount != sampledThreadCount { threadCount = sampledThreadCount }
             resourceSampleDate = lastProcessSampleDate
             if pane == .overview || pane == nil { overviewProcesses = rankedProcesses(resourceSample, key: "cpu", limit: 5) }
             else if page != 0 { rankResources() }

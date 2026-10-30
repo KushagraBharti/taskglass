@@ -15,27 +15,7 @@ struct ResourceProcesses: View {
 
     var body: some View {
         PaneSection("Processes", accessory: {
-            HStack(spacing: 16) {
-                // Stable across system-only samples, which carry no process list.
-                if monitor.accessibleProcessCount > 0 {
-                    Text("\(monitor.accessibleProcessCount) processes").monospacedDigit().help("Processes macOS allows Taskglass to read")
-                }
-                Toggle(monitor.resourceSort == "ane" ? "OS resource groups" : "Group by app", isOn: monitor.resourceSort == "ane" ? .constant(true) : $monitor.resourceGrouped)
-                    .toggleStyle(.checkbox)
-                    .disabled(monitor.resourceSort == "ane")
-                    .help(monitor.resourceSort == "ane" ? "Shared kernel counters require grouping by OS resource ID" : "Combine each application with its helper processes")
-                Picker("Rank by", selection: $monitor.resourceSort) {
-                    ForEach(Self.rankings, id: \.key) { Text($0.title).tag($0.key) }
-                }
-                .pickerStyle(.menu).fixedSize()
-                InfoButton("About this list", notes: [
-                    "Every process macOS lets Taskglass read, ranked by the selected measurement. Click a measurement heading to rank by it; each page remembers its ranking. Expand an application to see its helpers. Double-click or press Return on a process to inspect it in Processes.",
-                    "CPU: \(TableKit.cpuHelp)",
-                    "Memory: \(TableKit.memoryHelp)",
-                    "Disk: \(TableKit.diskHelp)", TableKit.gpuHelp, TableKit.neuralHelp, TableKit.aneHelp
-                ])
-            }
-            .controlSize(.small)
+            ResourceProcessControls(monitor: monitor)
         }) {
             if pane == .gpu && monitor.snapshot.gpuAccountingAvailable == false {
                 Notice("This driver did not expose readable GPU client counters. GPU time remains unavailable.")
@@ -76,5 +56,33 @@ struct ResourceProcesses: View {
         case .temperatures: "Temperature"
         default: nil
         }
+    }
+}
+
+/// Ranking, grouping and help stay independent of changing process readings.
+private struct ResourceProcessControls: View {
+    @Bindable var monitor: Monitor
+    var body: some View {
+        HStack(spacing: 16) {
+            // Stable across system-only samples, which carry no process list.
+            if monitor.accessibleProcessCount > 0 {
+                Text("\(monitor.accessibleProcessCount) processes").monospacedDigit().help("Processes macOS allows Taskglass to read")
+            }
+            Toggle(monitor.resourceSort == "ane" ? "OS resource groups" : "Group by app", isOn: monitor.resourceSort == "ane" ? .constant(true) : $monitor.resourceGrouped)
+                .toggleStyle(.checkbox)
+                .disabled(monitor.resourceSort == "ane")
+                .help(monitor.resourceSort == "ane" ? "Shared kernel counters require grouping by OS resource ID" : "Combine each application with its helper processes")
+            Picker("Rank by", selection: $monitor.resourceSort) {
+                ForEach(ResourceProcesses.rankings, id: \.key) { Text($0.title).tag($0.key) }
+            }
+            .pickerStyle(.menu).fixedSize()
+            InfoButton("About this list", notes: [
+                "Every process macOS lets Taskglass read, ranked by the selected measurement. Click a measurement heading to rank by it; each page remembers its ranking. Expand an application to see its helpers. Double-click or press Return on a process to inspect it in Processes.",
+                "CPU: \(TableKit.cpuHelp)",
+                "Memory: \(TableKit.memoryHelp)",
+                "Disk: \(TableKit.diskHelp)", TableKit.gpuHelp, TableKit.neuralHelp, TableKit.aneHelp
+            ])
+        }
+        .controlSize(.small)
     }
 }

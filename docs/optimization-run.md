@@ -1,6 +1,6 @@
 # Optimization run
 
-Requested minimum: six hours of active optimization. Started 2026-10-30 05:04:28 UTC. Scheduled continuation every 30 minutes in this thread; waiting between runs is not active work. Automation: taskglass-optimization-passes.
+Requested minimum: six continuous hours of active optimization. The user rejected scheduled continuation; taskglass-optimization-passes was deleted. Continuous work runs from 2026-10-30 05:53:30 UTC until 11:53:30 UTC in this chat. The earlier first-pass work is recorded below but does not shorten this timer.
 
 Branch: perf/six-hour-optimization. Baseline: v0.1.1 / c743e4f. No new dependencies or global installations. User prioritizes implementation; keep builds and correctness checks targeted and brief.
 
@@ -141,3 +141,7 @@ Name searches skip impossible PID matches and numeric searches try the cheap PID
 Built the starting and current UI against the same SDK with an identical frozen 1,000-process fixture and 31-point history. Median forced update/layout times in one sequential run: Overview 12.795 to 11.501 ms, Processes 3.113 to 0.885, CPU 6.282 to 5.580, Memory 5.863 to 4.303, GPU 6.327 to 5.250, Neural Engine 6.389 to 4.677, Storage 6.537 to 4.666, Network 6.325 to 4.903, Battery 5.969 to 4.713, Temperatures 6.421 to 4.167. Not a live scrolling or whole-app CPU measurement. Data generation is excluded, but fixture metadata is recreated each update, unlike the optimized real sampler. Sequential external-load effects remain possible.
 
 The initial combined update/layout/bitmap result made Neural Engine look unusually slow. A five-second stack sample showed ~80% of main-thread samples in the forced bitmap capture, mostly Core Graphics pixel compositing. Separated layout from bitmap work rather than optimizing the diagnostic's raster overhead. Raw fixtures and profiles are in .build/optimization/pass18. The published app's native AX window and screenshot remain available; raising it now refreshed its visible readings, but a fresh exposure-classified live profile is still pending.
+
+## Pass 19: stable controls and Overview sections
+
+Process/thread totals now publish only when their values change. Resource ranking controls, Overview process rows, the battery panel and footer have independent observation boundaries. An instrumented native fixture confirmed that 20 unrelated fast updates did not rebuild those sections, while process counts, grouping, battery readings and their own settings still updated. Overview rows reuse formatted metrics for visible and accessibility text. Release build passed. Continuous timer remains 05:53:30–11:53:30 UTC; no scheduled continuation exists.
