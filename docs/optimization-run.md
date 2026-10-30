@@ -1,257 +1,34 @@
-# Optimization run
+# Optimization and cleanup record
 
-Requested minimum: six continuous hours of active optimization. The user rejected scheduled continuation; taskglass-optimization-passes was deleted. Continuous work runs from 2026-10-30 05:53:30 UTC until 11:53:30 UTC in this chat. The earlier first-pass work is recorded below but does not shorten this timer.
+Baseline: v0.1.1, `c743e4f`. Implementation checkpoint: `5e83375`. No dependencies or global installations were added.
 
-Branch: perf/six-hour-optimization. Baseline: v0.1.1 / c743e4f. No new dependencies or global installations. User prioritizes implementation; keep builds and correctness checks targeted and brief.
+The user requested six hours of continuous optimization and rejected scheduled continuation. The recurring automation was deleted. Work began at 05:53:30 UTC on 2026-10-30, paused for 51 seconds at 10:14:39, and resumed at 10:15:30. At 11:45:30 the user explicitly paused optimization for cleanup and packaging. Approximately **5 hours 51 minutes** of active work accumulated in this continuous run. Six hours was not completed. An earlier 14-minute pass is separate and does not shorten that timer. No scheduled waiting is counted.
 
-## Current focus
+## Retained changes
 
-At 10:14 UTC the user paused new optimization for cleanup, then explicitly prioritized whole-app RAM and CPU reductions first. Controlled app-level measurements are the immediate priority; cleanup and packaging follow. The continuous run had accumulated about 4 hours 21 minutes before this steering. No six-hour completion claim.
+- Property-scoped Observation replaces broad monitor notifications. Private staging buffers do not invalidate visible views, and stable navigation/count values publish only when changed.
+- Process rows share immutable metadata. Family members share the source sample through integer indices. Compact numeric keys and cached localized name order reduce sorting work without changing exact UInt64 memory ordering.
+- Native tables reuse visible cells and positional outline items. Expansion and selection follow process/app identity. Small bounded pools release retired data, and unchanged labels and numeric readings avoid repeated formatting.
+- List and inspector icon caches use separate pixel sizes and bounded eviction. User-name lookups stay off the main thread.
+- Hardware handles and sensor metadata are reused. Slow hardware fields keep their ten-second cadence; supported CPU/GPU/ANE counter semantics and availability remain unchanged.
+- Each chart draws grid, baseline, fill and traces in one native Core Graphics view. Chart scales and unchanged inputs avoid redundant work. Core maps reuse label measurements and drawing geometry.
+- Rounded bands draw their backgrounds directly; process tables cover only their outside corners instead of compositing the entire table through a mask. Layout, colors, data and scrolling remain intact.
+- Safe `-Osize` plus full LTO reduces the executable. Reflection, unwinding and crash symbols remain available in the local unstripped build and dSYM.
 
-## Current pass
+See [current measurements](../measurements/README.md) for whole-app CPU, memory, size and limitations. Component benchmarks are not whole-app speedups. Detailed historical passes remain in Git history.
 
-In progress: reduce process-group allocation/hashing, remove temporary sampler collections, reduce retained native outline payloads and unnecessary rendering work. Original grouping and differential microbenchmark saved under ignored .build/optimization. Preserve rate baseline resets, PID birth guards, missing readings and shared ANE accounting.
+## Rejected experiments
 
-Active time will be recorded at the end of each pass, separately from scheduled elapsed time. No six-hour completion claim yet.
+A Canvas renderer lowered CPU but substantially increased graphics memory, so native drawing replaced it. Collinear path simplification, custom process text drawing and altered outline clipping did not justify their complexity or visual differences. Lazy page construction, forced chart layers, explicit drawing bounds, hidden scroll effects and a replacement native scroll container did not improve CPU-page memory. Diagnostic removal of tables or heatmaps was never adopted. All resource views and processes remain available.
 
-## Pass 1 evidence and next work
+## Verification
 
-Active work so far: 2026-10-30 05:04:28–05:19:10 UTC, approximately 14 minutes. This is a checkpoint, not completion of the six-hour request.
+The existing ABI, sampling, accelerator, sorting and lifecycle checks passed after the final code changes. A busy single-thread fixture measured about 100% CPU. Real six-second Metal and Core ML workloads verified GPU PID attribution and shared ANE group time on the M5 Pro. Release build, ARM64/macOS 14 metadata, ad-hoc signature, ZIP/DMG integrity and extracted executable equality passed locally.
 
-Implemented allocation reductions in grouping, sampler dictionaries/path decoding, history summaries, core topology/labels, native cell construction/format caching and retired outline payloads. Retained hardware baseline now contains only disk counters. No dependencies added. Main/accelerator accounting semantics preserved.
+Native inspection confirmed the dashboard and CPU navigation; deterministic rendering checked the table's rounded edges. The accessibility tool timed out when traversing the long live process list, so that attempt is not counted as a successful end-to-end scrolling check. Earlier native outline fixtures covered selection, expansion and re-ranking. Broader physical Mac and accessibility coverage remains outstanding.
 
-Grouping comparison: 2,000 deterministic mixed processes, alternating order, 100 iterations per ranking, same frozen input and equality assertion. CPU 1.422→1.163 ms; memory 1.797→1.623 ms; GPU 1.244→0.979 ms; ANE 1.529→1.346 ms. Baseline function and benchmark under .build/optimization. This measures grouping, not whole-app speed. The source used by both functions shares ProcessFamily, so icon lookup changes are not included.
+## Cleanup
 
-Same SDK27/compiler/Osize stripped executable: baseline 999,648 bytes; initial candidate 982,976 bytes. Recheck after later changes. Brief existing ABI/sampling/lifecycle checks passed; real busy CPU fixture 99.93%. No new test framework or dependency.
+Removed obsolete plot implementations, unused theme/history declarations and superseded design audits. Consolidated measurements into the matched before/after aggregates and one methodology document. Source-reference and C warning checks found no further safe unused-code removals; framework callbacks and older-OS fallbacks remain necessary. Generated experiments and old local release archives are removed after preserving the reviewed aggregates. Build caches, the current app, archives and symbols stay scoped to `.build` and `dist`.
 
-Baseline/candidate bundles and an identical-toolchain baseline checkout/build are under .build/optimization. Baseline PID 83311, events baseline-events.log. UI automation can read/click AX but window reports covered; coordinate click returned noWindowsAvailable. Do not count these measurements as exposed-window performance. Baseline covered Memory run: 20.06 seconds, 0.701% one core, 99.31 MiB median footprint; external workload uncontrolled. Published dist/Taskglass.app remains untouched.
-
-Next candidate: replace broad Combine ObservableObject invalidation with property-scoped Observation, keeping covered-window staging unobserved and observing only presented state. Verify native representables keep updating and preserve pause/wake/selection semantics. Then assess sampler cache churn, chart geometry/cache cost and repeated formatting/layout. Do not publish before completing the requested sustained optimization and final verification.
-
-## Pass 1 continued: presentation and sorting
-
-Replaced Combine-wide monitor notifications with native Observation. Private sampling/staging buffers are ignored; process count, thread count and record getters depend on the published process-sample date, preserving covered-window behavior. SwiftUI views use bindings only where needed; app ownership uses explicit SwiftUI.State storage to remain compatible with the SDK27 Command Line Tools' missing State macro plugin.
-
-Moved observable sort/filter reads out of per-row closures, skipped the redundant filter for an unfiltered process list, and sorted the selected array in place. In an alternating 100-iteration, 2,000-row comparison on the same observable model, old/new arrangement algorithms produced identical order. CPU 3.464→2.568 ms; memory 4.528→3.528 ms; GPU 2.976→2.190 ms; PID 0.240→0.129 ms. This isolates the arrangement algorithm; it does not measure old Combine versus Observation or whole-app rendering.
-
-Final local signed candidate executable is 982,144 bytes versus 999,648 for the identical-toolchain baseline, about 1.75% smaller. Candidate bundle: .build/optimization/candidate/Taskglass.app. Current source compiles successfully. Existing monitor lifecycle checks passed after the Observation migration. Native AX checks confirmed navigation, grouping toggle and helper expansion. Real exposed-window repaint smoothness remains unmeasured because the system reports the windows covered; do not present the following as a visible-window gain.
-
-Covered Memory candidate run: 20.08 s, 0.593% of one core, 96.11 MiB median footprint, 113.3 MiB last footprint. Baseline was 0.701%, 99.31 MiB median. Short, sequential, uncontrolled samples with differing sample counts and late UI interaction are not strong evidence of an app-wide improvement. Raw logs stay ignored.
-
-Both temporary comparison processes were closed. The original published dist/Taskglass.app was reopened normally. Development bundles remain scoped to .build; use full app paths with computer-use tools because their bundle identifiers are identical. No release or PR has been opened for this still-running optimization effort.
-
-Active time accumulated in this first turn: approximately 23 minutes, from 05:04:28 to 05:27 UTC. Scheduled waiting is excluded. Remaining requested active work: approximately 5 hours 37 minutes. Update this ledger at each continuation; do not claim six hours completed based on wall time.
-
-Next implementation priorities: inspect sampler dictionary/cache churn and repeated string/identity decoding, reduce repeated chart geometry and value formatting without changing gaps/scales, bound native outline reuse over extended process churn, and improve startup/retained memory. Obtain an exposed-window profile when available. Keep the focus on code, with brief targeted measurements and checks only. Preserve macOS14+ compatibility and avoid global installs. Complete the six-hour run before final PR/checks/merge/release.
-
-## Continuous work correction
-
-The user rejected scheduled continuation. Deleted taskglass-optimization-passes. Continuous six-hour work starts 2026-10-30T05:53:30.044580+00:00 and runs until 2026-10-30T11:53:30.044580+00:00. Deadline is tracked in .build/optimization/continuous-timer.json and checked between work passes. Do not create another continuation automation. Continue in this chat until the deadline; scheduled waiting no longer applies.
-
-## Pass 2: retained process data and history summaries
-
-Work resumed at 05:38:57 UTC; continuous deadline remains 11:53:30 UTC. Removed eagerly allocated helper rows from the native outline. Children are created on expansion and hold only a weak parent plus index. Root reuse is bounded to 32 items and clears old contents. AppKit explicitly retains returned items. Selection still follows PID and birth identity after reranking, and pane changes refresh columns even when the ranking is unchanged.
-
-Collapsed-group churn fixture: a 100-member app moves through 600 positions. Retained item identities fell from 60,600 to 600; 600 updates took 34.379 to 15.384 ms. Old item/root/child instance sizes were 432/176/24 bytes before the subsequent metadata change. An actual NSOutlineView fixture passed 80 growth/shrink/rerank cycles, expansion/collapse, helper selection, regrouping and empty data.
-
-Immutable process path/name/application metadata now shares one object across samples. ProcessRow stride fell from 224 to 168 bytes. Existing process names compare against the C buffer before decoding; non-app paths are resolved once. With the same already-optimized arrangement algorithm and frozen 2,000-row inputs, metadata sharing reduced CPU sorting from 2.534 to 1.679 ms, memory from 3.464 to 2.479, GPU from 2.199 to 1.521, PID from 0.128 to 0.075. These are isolated microbenchmarks, not whole-app measurements.
-
-History peak and mean requests share a per-series summary until history changes. A representative repeated axis-request fixture took 0.008 to 0.003 ms at 31 points, 0.039 to 0.011 at 181, and 0.102 to 0.030 at 601. Equality, empty history and invalidation checks passed. This remains a small absolute saving.
-
-Existing sampler/accounting/lifecycle checks passed after metadata changes. The full release build passed after all pass-2 changes. Temporary fixtures, baseline source and raw results remain under .build/optimization/pass2. No dependency or global installation. Next: reduce chart path generation and heatmap geometry work while preserving gaps, exact scales and appearance.
-
-## Pass 3: chart paths and heatmap batching
-
-Line and fill paths now share one calculation. Kept SwiftUI rendering after comparing a native-view experiment: its extra view/cache machinery did not materially improve the default short-history case. Five filled-series path calculations improved by about 40–41% at 31/181/601 points. Path commands and segment boundaries match, with coordinate differences below 0.0001 pt from SwiftUI's float conversion.
-
-Offscreen NSHostingView update/layout/bitmap comparison at 2x: two-layer 31-point thumbnail 0.084 to 0.081 ms; 601-point thumbnail 0.317 to 0.181; 601-point 600x240 chart 1.055 to 0.941. These forced bitmap fixtures are not a visible-window smoothness measurement. The unused native-view experiment remains only under .build/optimization/pass3.
-
-Core heatmaps calculate each sample's x/width once for all cores and batch rectangles into the eight load paths. A direct per-rectangle Core Graphics rewrite was slower and rejected. Batched geometry for 18 cores improved 31-point construction 0.018 to 0.016 ms, 181 points 0.082 to 0.066, 601 points 0.143 to 0.105. The heatmap raster is pixel-identical across all three history windows, gaps, missing cores and nonfinite values. Label font/attribute dictionaries are retained per heatmap view instead of recreated every draw. Full release build passed.
-
-Continuous work is still underway. Next candidate: stop copying full process records into every grouped list; store ordered indices into the shared sample while preserving aggregation and selection.
-
-## Pass 4: shared group membership
-
-Process families now hold ordered indices into the shared sample. Single-process rows use a range and allocate no member array. Groups sort integers rather than full ProcessRow records. Family structs grow from 160 to 176 bytes, but each member index uses 8 bytes instead of another 168-byte record. Family equality compares only selected members; aggregation still follows the original sorted order, and coalition fallback titles preserve their original source-order choice.
-
-Frozen 2,000-process comparison against the previous implementation: CPU grouping 1.028 to 0.921 ms, memory 1.636 to 1.422, GPU 0.898 to 0.759, ANE 1.141 to 0.955, disk 1.467 to 1.210. Grouped and ungrouped outputs compare equal for all columns. Existing sampling/accounting/lifecycle checks and the release build passed. Live sampling timings varied with system load, so those are not used as before/after claims.
-
-## Pass 5: resolve sort keys before comparisons
-
-Added a typed process sort key, resolved once at arrangement/grouping entry. Preserved string entry points and their fallback behavior. All 13 process columns compare equal to the previous ordering in both directions. Frozen 2,000-row process sorting improved memory 2.432 to 1.907 ms, disk 2.089 to 1.865, write 1.567 to 1.290 and CPU 1.764 to 1.686. PID/name were essentially unchanged. Grouping improved another 7–32% depending on the ranking. Current source compiled in the release build.
-
-## Pass 6: native cell layout
-
-Replaced per-cell Auto Layout constraints with direct frames for the fixed-height text, 16-point icon and 28-point meter. Matched NSTextField alignment insets so text edges remain identical. The six-column raster fixture matched pixel for pixel, including a grouped app title and truncated numeric text. Constructing/layout of 120 cells fell from 9.288 to 5.312 ms; value updates plus alternating column resizes fell from 3.284 to 0.687 ms. This measures cell layout, not overall application CPU.
-
-Grouped title caching now compares the existing title/count directly, avoiding a concatenated cache-key string. Font/color/paragraph attributes are shared. Bar maxima use the first already-sorted row instead of scanning the entire list again. Release build passed after the layout and title-cache changes; final integration checks still remain.
-
-## Pass 7: numeric coalition grouping
-
-Coalition buckets now use their numeric IDs; names and string IDs are formatted once per group. ANE grouping in the frozen fixture fell from 0.697 to 0.492 ms, about 29%. Other rankings were unchanged within 0.2%. Grouped/ungrouped outputs still compare equal.
-
-## Pass 8: borrow GPU identity data
-
-GPU accounting stores birth identity alongside each tracked client instead of retaining a separate map of every accessible process. The sampler borrows its existing fresh process cache and lazily reads the C client buffer, removing the temporary client array and second process-identity dictionary. CPU timestamps and all client/PID/context/reset guards remain intact.
-
-The scoped identity-map/accounting fixture with 2,000 known processes took 0.0369 to 0.0037 ms for 20 clients and 0.0388 to 0.0143 for 100; 500 clients were unchanged. These are small absolute savings and exclude driver scanning. Existing accounting/sampling/lifecycle checks passed. A real six-second Metal workload was attributed to its PID, peaking at 992.57 ms/s; complete sampler averaged 3.37 ms during that workload. Updated the optional accelerator build script for the shared-members source dependency. No global installs.
-
-## Pass 9: size icon caches for their actual use
-
-List icons now retain 32x32 bitmaps for their 16-point display. The inspector has a separate 16-entry cache of 80x80 images for its 40-point display. The maximum cached pixel payload is about 1.39 MiB instead of 6.25 MiB, excluding the two generic icons and object overhead. This is a capacity calculation, not a measured whole-app footprint claim. A second-chance eviction policy replaces one cold entry instead of clearing all 256 icons at the limit. A targeted native check confirmed cached image identity and both exact retina sizes; release build passed.
-
-## Pass 10: refresh visible table rows once
-
-The shared table updater resolves the visible columns once, then retrieves each row's record once before configuring its cells. Outline refreshes no longer ask AppKit for the same tree item for every column. Account-name completion refreshes only the User column. Release build passed; no app-wide timing claim for this structural reduction.
-
-## Pass 11 investigation
-
-Rejected fetching GPU owner and usage as separate registry properties. Alternating 100 live scans with 86 clients took 0.462 ms for the existing combined properties read and 0.599 ms for separate reads. Replacing sscanf with strtol saved only 0.008 ms and narrowed accepted owner formatting, so retained the existing parser. Neither experiment changed production code.
-
-Investigating whether the already-collected per-core CPU counters can also provide the aggregate CPU reading. Apple's current XNU host.c and processor.c use the same processor_cpu_load_info helper. Check the supported older release implementation and failure/source-transition handling before making this change. Sources: https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c and https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/processor.c . Continuous deadline remains 11:53:30 UTC; six hours have not elapsed.
-
-## Pass 12: isolate live readings from window navigation
-
-Moved resource rail rows, the live subtitle and process workspace into their own view bodies. The window root now reads stable chip/battery-presence properties, updated only when those facts change. Live CPU/history updates no longer rebuild NavigationSplitView and the toolbar. In an instrumented offscreen host, 30 changing samples evaluated the old ContentView root 31 times and the new root once. This proves the observation boundary; it is not an exposed-window smoothness claim. The release build passed.
-
-The aggregate CPU-counter investigation remains deferred; no C counter semantics changed. Both current XNU and the older source files were inspected, but a source-transition fallback would add complexity for one small RPC saving. Prioritizing UI invalidation and retained memory instead.
-
-## Pass 13: slow hardware and sensor presentation
-
-Hardware mapping reuses cached static/slow fields and borrows the raw temperature tuple in place. Fast GPU/power/disk values are always replaced, including unavailable values; slow capacity/battery/fan/sensor fields refresh at their existing cadence. A deterministic C fixture matched old/new readings across availability changes and sensor-mode transitions. Mapping including the synthetic probe took 4.524 versus 4.344 microseconds, a small saving rather than an app-wide claim.
-
-The sensor filter/table now has its own observation boundary and complete reading equality, including names and sources. Twenty fast CPU updates caused no sensor-section rebuild; changing the filter or sensor reading still updated it. Fan views compare only their four speed/maximum inputs and label width. Release build passed. Fixtures remain in .build/optimization/pass13. An initial synthetic fixture incorrectly changed slow storage data on fast reads; corrected it to match the real probe's cached behavior before comparing.
-
-## Pass 14: process identity and single-member aggregation
-
-Outline selection now compares numeric PID/birth identities, avoiding a formatted string for every helper searched during re-ranking. Group expansion IDs remain unchanged. Single-member families copy their existing readings without running aggregate/deduplication machinery. Frozen 2,000-row ungrouped ranking improved CPU 1.777 to 1.703 ms, memory 2.015 to 1.948, GPU 1.423 to 1.361 and disk 2.040 to 1.962. Grouped/ungrouped results match the earlier implementation. The existing 80-cycle native outline fixture passed growth/shrink, ranking, helper selection, expansion/collapse, regrouping and empty data. Release build passed.
-
-## Pass 15: fixed-precision metric text
-
-Replaced Foundation format-argument construction for live numeric readings with a small inline snprintf_l bridge and bounded Swift string initialization. It uses the C locale explicitly and retains the same printf rounding. Compared 180,144 cases against the prior Foundation output, including random Double bit patterns, signed zero, rounding boundaries, extreme values and C/German/French process locales; all matched. Buffers cover the full finite Double range at the supported 0–2 decimal places without truncation.
-
-Representative percentage formatting fell from 0.599 to 0.121 microseconds. FormatStyle and shared NumberFormatter alternatives measured 0.361 and 0.302 microseconds respectively. These are formatter timings, not whole-app speedups. Existing ABI/accounting/sampling/lifecycle checks passed, as did the release build. Current stripped executable is 1,014,256 bytes versus the same-SDK starting baseline's 999,648; overall binary size is still slightly above baseline despite the execution/memory improvements, so no overall size-reduction claim yet. Apple documents NULL convenience-function locale as C: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/xlocale.3.html .
-
-## Pass 16: inactive-page retention and native drawing inputs
-
-Switching to Overview/Processes releases the unused resource-list sample; leaving Overview releases its old top-five list. Sampler/GPU/ANE resets now release dictionaries whose reserved capacity was never reused because each next sample builds a new dictionary. Removed the global sensor-row cache: the equatable sensor section already prevents fast-sample work, so derived rows now live only with their view. Heatmaps compare typed inputs directly rather than constructing a signature string. Fixed native palette/track colors are shared, and each heatmap reuses its eight exact alpha colors until its tint changes. Release build passed. No whole-app footprint claim for these lifetime reductions.
-
-## Pass 17: search and CPU detail work
-
-Name searches skip impossible PID matches and numeric searches try the cheap PID match first. A frozen 2,000-row filter kept identical results for text, numeric, empty and Unicode queries. Representative times: helper 1.290 to 1.155 ms, codex 1.251 to 1.117, missing text 1.315 to 1.160, numeric 15 2.098 to 1.994. A hyphen query remained essentially unchanged. CPU detail rendering reads core kinds once per body and computes group averages directly without temporary value arrays. Nice chart ceilings no longer allocate a mapped array. Release build passed.
-
-## Pass 18: integrated rendering profile
-
-Built the starting and current UI against the same SDK with an identical frozen 1,000-process fixture and 31-point history. Median forced update/layout times in one sequential run: Overview 12.795 to 11.501 ms, Processes 3.113 to 0.885, CPU 6.282 to 5.580, Memory 5.863 to 4.303, GPU 6.327 to 5.250, Neural Engine 6.389 to 4.677, Storage 6.537 to 4.666, Network 6.325 to 4.903, Battery 5.969 to 4.713, Temperatures 6.421 to 4.167. Not a live scrolling or whole-app CPU measurement. Data generation is excluded, but fixture metadata is recreated each update, unlike the optimized real sampler. Sequential external-load effects remain possible.
-
-The initial combined update/layout/bitmap result made Neural Engine look unusually slow. A five-second stack sample showed ~80% of main-thread samples in the forced bitmap capture, mostly Core Graphics pixel compositing. Separated layout from bitmap work rather than optimizing the diagnostic's raster overhead. Raw fixtures and profiles are in .build/optimization/pass18. The published app's native AX window and screenshot remain available; raising it now refreshed its visible readings, but a fresh exposure-classified live profile is still pending.
-
-## Pass 19: stable controls and Overview sections
-
-Process/thread totals now publish only when their values change. Resource ranking controls, Overview process rows, the battery panel and footer have independent observation boundaries. An instrumented native fixture confirmed that 20 unrelated fast updates did not rebuild those sections, while process counts, grouping, battery readings and their own settings still updated. Overview rows reuse formatted metrics for visible and accessibility text. Release build passed. Continuous timer remains 05:53:30–11:53:30 UTC; no scheduled continuation exists.
-
-## Pass 20: selected-process inspector
-
-Identity, process metadata, executable details and quit controls now compare their own small inputs instead of rebuilding with activity readings. Account-name completion is observed by the User row. Four temporary history arrays became one pass deriving all chart scales with the same finite-value handling and floors. The warmed native fixture kept the static sections unchanged through 100 live updates and updated quit availability when the process disappeared; the initial account-name/layout settling caused one extra process-info evaluation, not a recurring rebuild. Update/layout median was 0.944 to 0.913 ms (small, load-sensitive). Release build passed; action-time PID/birth checks remain unchanged.
-
-## Pass 21: link-time optimization
-
-Release packaging now uses SwiftPM full LTO alongside -Osize. Current signed executable fell from about 1,031 KB to 894 KB; the same-SDK starting baseline was 1,000 KB. Reflection, unwind data and safe Swift semantics remain enabled. Keeping the combined LTO object inside .build fixes dsymutil's missing-temporary-object warning; the resulting dSYM has matching UUID and subprogram information. SwiftPM 6.0 already supports the option (https://raw.githubusercontent.com/swiftlang/swift-package-manager/swift-6.0-RELEASE/Sources/CoreCommands/Options.swift). CI on the older supported toolchain still must pass before release.
-
-The LTO accounting/sampling check passed counter units, PID/client resets, coalition deduplication, CPU busy fixture and termination identity guards. Alternating inspector profiles showed 0.909/0.964 ms without LTO and 0.895/0.899 with it; no meaningful runtime regression observed in that limited fixture. Scoped LTO app launched and rendered live Overview/CPU correctly. Computer-use subsequently timed out even on inventory, while a 3-second Taskglass stack sample showed normal event-loop waiting and updates, not a hang. Full UI verification remains pending.
-
-Rejected -Oz for C: executable grew 72 bytes, with no measured probe benefit. More aggressive symbol stripping saved only 480 bytes and was also rejected. Direct -lto compiler flags did not cooperate with SwiftPM's object map; its generated bitcode was moved into .build and the supported SwiftPM LTO option used instead. No global installs or published app replacement.
-
-## Pass 22: numeric identities for individual outline rows
-
-Individual process families keep PID/birth as numbers instead of formatting a fresh identity string each sample. Group expansion still uses stable app/coalition strings; pruning ignores individual rows. Single-process families initialize directly from their record. Equal-value individuals now use numeric PID/birth order; named groups retain their previous tie order. Readings, membership and identity text matched the reference, and the 80-cycle native outline fixture passed.
-
-With realistic 16-digit birth values and full LTO, 2,000 ungrouped rows improved CPU 2.234 to 2.007 ms, memory 2.609 to 2.393, GPU 1.815 to 1.540, disk 2.553 to 2.378. At 750 grouped rows savings were smaller (1–5.5%); ANE grouping was roughly unchanged (+0.004 ms). The initial short synthetic birth IDs fit in Swift small strings and regressed 9–13%, so they did not represent the actual allocation being removed.
-
-Rejected a narrower CPU tick-conversion arithmetic fast path. It matched wide random values but saved only ~2 ns per conversion, about 1.5 microseconds per ordinary sample. Retained the existing 128-bit conversion.
-
-## Pass 23: heatmap rectangle batches
-
-Merged touching or overlapping cells of the same shade and core row without crossing a geometric gap. The renderer now submits those rectangle batches to the current drawing context rather than allocating eight intermediate paths. Pixel output matched at 1x/2x for dense/narrow layouts, missing/nonfinite cores, restarts and gaps. Full geometry-plus-2x-raster timing for 601 samples/18 cores improved 3.754 to 3.191 ms with rapidly changing values, and 3.419 to 1.839 ms with mostly idle values. The latter reduced cells from 10,139 to 714. These are isolated renderer measurements, not whole-app CPU claims. Short-history improvements were smaller. Release build passed.
-
-Direct CGContext.fill(rects) changed a few antialiased edge pixels; retained addRects + fillPath, which matched exactly.
-
-## Pass 24 investigation
-
-Batched line points reduced isolated path-construction time, but full chart update/layout/raster measurements were essentially unchanged and the longest layout case regressed slightly. Retained the current implementation instead of adding another temporary point buffer. Pixel output matched. Experiment stays in .build/optimization/pass24.
-
-## Pass 25: compact numeric sorting
-
-Numeric sorts now cache keys once, sort compact key/index records, then permute large process/family records once. At 750 rows, ordinary process CPU sorting improved 0.334 to 0.089 ms, memory 0.333 to 0.067, GPU 0.329 to 0.128 and disk 0.331 to 0.067. Grouped resource ranking improved CPU 0.235 to 0.124, memory 0.277 to 0.119, GPU 0.228 to 0.125 and disk 0.292 to 0.123. These are frozen fixtures with output consumed, not whole-app CPU measurements. Name/PID and small-result sorts retain their direct path.
-
-All column orderings matched in both directions except an existing neural-memory defect exposed by extreme counters: map(Double.init) selected the bit-pattern initializer. Neural-memory sorting now compares exact UInt64 counters, distinguishing missing from zero and preserving low bits beyond Double precision. Added that specific regression case to the existing accelerator check. Sampling, accelerator accounting and monitor lifecycle checks passed; no CPU/GPU/ANE collection semantics changed.
-
-## Pass 26: reuse localized name order
-
-The main process table preserves the order of unchanged names, sorts new/renamed entries and merges them using the existing localized comparison. The cache retains only PIDs and names, releases on leaving the table or choosing another column, and resets when Locale.current changes. It does not retain old samples. A 120-generation fixture matched fresh sorting through additions, exits, renames, Unicode names, direction changes and explicit resets. Warm 750-row sorting improved about 1.99 to 0.046 ms; 2,000 rows 6.82 to 0.109 ms. First-use sorting still takes the ordinary path.
-
-The accumulated numeric/name changes passed the native outline's 80-cycle selection/expansion/churn check and release compilation. Scoped executable is 926,800 bytes, still below the same-SDK starting baseline's 999,648, though larger than the earlier LTO-only build. Native inspection recovered, and the scoped app was refreshed without replacing the published app.
-
-## Pass 27: share numeric-sort implementations
-
-Combined columns that use the same key representation so key selection happens once per row and the compact sort implementation is shared. Full-LTO machine code shrank 2,480 bytes; aligned executable size changed only 16 bytes, so this is not a meaningful download-size gain. Alternating 750/2,000-row comparisons preserved ordering and showed no material regression; disk/read sorting improved another 4–7% in the fixture. Release build passed. The current native app also rendered the live dashboard and correctly sorted the main table by name.
-
-## Pass 28: reuse core tile drawing objects
-
-Core tiles keep their rounded paths, fixed label measurements and last rendered value/color. Resizing or topology changes rebuild the affected geometry; changing utilization refreshes the value. Exact raster comparison passed at 1x/2x, different widths/core counts, empty placeholders and nonfinite inputs. An 18-core draw improved 0.938 to 0.793 ms with mostly idle cores and 0.959 to 0.892 ms when every core changed. The small caches live with the view. Release build passed.
-
-## Pass 29: skip impossible outline expansion work
-
-The outline queries AppKit expansion state only for slots that are or were groups. Individual selection searches also skip those queries. The native viewport fixture improved ungrouped 1,000-row updates from 0.428 to 0.400 ms; grouped updates were essentially unchanged. Expansion, collapse, helper selection and regrouping passed the existing 80-cycle native check. An initial fixture omitted the enclosing scroll view and accidentally refreshed all rows; corrected that before using the timing.
-
-## Pass 30 investigation
-
-Profiled the scoped app’s process table. A custom NSView/NSTextFieldCell label reduced construction/update cost in isolation but changed text contrast; rejected it. Disabling autoresizing-mask constraints on existing cell subviews showed no meaningful constraint or timing improvement, so those flags were also reverted. No renderer substitute shipped. Native accessibility inspection materialized about 100 rows, so the resulting heap is not a typical untouched-window footprint baseline.
-
-## Pass 31: consolidate chart drawing
-
-Each chart now draws its layers in one Canvas rather than separate SwiftUI shape subtrees for every fill/stroke. Paths, gaps, dashes, scales and surrounding accessibility remain unchanged. Focused update/layout improved 0.043 to 0.016 ms for a thumbnail and 0.228 to 0.112 ms for a 181-point detailed chart. Raster comparison differed only by up to 2/255 in edge channel rounding. Alternating full-dashboard Overview/CPU/GPU fixtures showed no meaningful overall timing regression or reliable whole-dashboard improvement.
-
-## Pass 32: temporary formatter storage
-
-Formatting writes into a bounded temporary stack buffer, then creates the final string. Small results use inline Swift string storage instead of reserving a 64-byte heap string. Focused time improved 0.103 to 0.075 microseconds. All 180,144 Foundation parity cases matched, including extreme values, rounding boundaries, random bit patterns and process locales. No formatting or precision changes.
-
-## Pass 34: core-history text reuse
-
-Core-history rows cache fixed labels and unchanged numeric strings/sizes. The small cache lives with each native heatmap and rebuilds on prefix/count changes. Full draw including text, geometry and 2x raster improved 1.535 to 1.375 ms with mostly idle cores, and 1.535 to 1.439 with every core changing. Exact pixels matched at 1x/2x, missing/nonfinite values, changed topology and resizing.
-
-## Pass 33: reserve Neural Engine result capacity
-
-ANE rate construction reserves capacity from the known group count before inserting readable rates. The 30-group fixture improved 1.65 to 0.70 microseconds, 100 groups 5.44 to 2.16, and 500 groups 24.78 to 11.30. Counter, timing and reset logic is unchanged. The GPU dictionary-filter replacement showed no meaningful gain at ordinary client counts and was rejected. The initial GPU comparison used exact floating-point sums despite dictionary iteration order; corrected the experiment to require identical keys and a 1e-12 relative tolerance.
-
-## Pass 35: isolate chart scales
-
-Detailed scale labels now receive only their numeric scale/unit/width, behind an equatable view boundary. They no longer capture the live history through the geometry closure. A focused 200-update host evaluated the original scale 200 times and the new scale zero times; an actual ceiling change still rebuilt it. Full plot update/layout improved 0.046 to 0.037 ms. Compact/detailed plots also compute availability once for the empty state and accessibility label; thumbnails remain free of that scan.
-
-## Whole-app RAM and CPU pass
-
-Measured baseline c743e4f and current candidates with the same SDK/toolchain, 1180×780 window, default 2 s cadence, 60 s warmup followed by 60 s measurement. CPU uses the corrected Mach timebase and means percent of one core. Exposure is recorded; external workloads remain uncontrolled.
-
-| Fully exposed measured interval | CPU | Median physical footprint | Peak footprint |
-| --- | ---: | ---: | ---: |
-| Starting Overview | 2.824% | 66.59 MiB | 68.20 MiB |
-| Intermediate Canvas Overview | 0.868% | 139.06 MiB | 225.06 MiB |
-| Native plots + normal bundle icon, Overview | 1.733% | 55.27 MiB | 58.24 MiB |
-| Starting CPU page after navigation | 6.150% | 211.61 MiB | 212.41 MiB |
-| Native plots + normal bundle icon, CPU page after navigation | 4.084% | 197.94 MiB | 214.61 MiB |
-
-The Canvas experiment improved CPU but regressed graphics memory. Replaced it with native Core Graphics drawing, preserving fill, dashes, gap handling and surrounding accessibility. Focused raster comparison differed by at most 1/255 in a few channels. Plot views redraw on resize and pass clicks to their containing buttons. Removed the development-only Dock icon override; the packaged Info.plist/ICNS remains the icon source. The combined Overview result is 39% less CPU and 17% lower median footprint in this local comparison. The two changes are not individually attributed.
-
-CPU-page memory still fluctuates and its peak did not improve. Investigating redundant rounded clipping separately. The later direct-launch fixture starts on CPU to avoid accessibility traversal and retained Overview state; do not compare its figures directly with the navigation runs above. One candidate interval was partly covered and is not a fully visible benchmark.
-
-## Plain table text reuse
-
-Visible process cells reuse unchanged plain strings/quiet state as well as grouped titles and numeric measurements. A 196-cell mixed update improved 0.031 to 0.011 ms in the focused fixture, with matching text, color, fonts and raster through group/plain/missing transitions. Group titles also invalidate the measurement cache. No row limit or refresh-frequency change.
-
-## Rejected path simplification
-
-Coalescing horizontal chart vertices reduced longest flat paths but saved only about 0.006 ms for the ordinary 181-point raster fixture and added state to segment handling. Retained the simpler geometry.
-
-## Shared native plot renderer
-
-Gridlines, baseline, start marker, fills and traces now share one AppKit drawing view. Removed the three redundant SwiftUI shape types and their layers. Full raster output matched exactly for all four chart styles at 180×60 and 521.5×196 points across 80 updates. Detailed large-chart draw improved 0.721 to 0.682 ms in this fixture; thumbnail time was unchanged. These are component timings, not another whole-app percentage. Release build passed. Removed five unused theme/history declarations during the source cleanup.
+The native SwiftPM engine is still selected because the installed Swift 6.4 default engine recorded incorrect SDK metadata. Its deprecation warning is a documented compatibility issue, not unused code. The packaging commands remain compatible with the supported CI macOS versions.

@@ -6,7 +6,7 @@ A native macOS task manager for Apple silicon. Live CPU, GPU, memory, Neural Eng
 
 ## Install
 
-**[Download the unsigned preview](https://github.com/KushagraBharti/taskglass/releases/tag/v0.1.1)** · macOS 14 Sonoma or newer · M-series Macs · free and open source under MIT.
+**[Download the unsigned preview](https://github.com/KushagraBharti/taskglass/releases/tag/v0.1.2)** · macOS 14 Sonoma or newer · M-series Macs · free and open source under MIT.
 
 Open the ARM64 DMG and drag Taskglass into Applications. The ZIP contains the same app.
 
@@ -17,7 +17,7 @@ Releases include SHA-256 checksums and GitHub build provenance. An ad-hoc signat
 ```sh
 shasum -a 256 -c SHA256SUMS.txt
 # Optional verification with GitHub CLI:
-gh attestation verify Taskglass-0.1.1-arm64-unsigned.dmg --repo KushagraBharti/taskglass
+gh attestation verify Taskglass-0.1.2-arm64-unsigned.dmg --repo KushagraBharti/taskglass
 ```
 
 ![Taskglass overview](docs/images/overview.png)

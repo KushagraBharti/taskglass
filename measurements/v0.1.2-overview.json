@@ -1,0 +1,67 @@
+{
+  "warmup": {
+    "label": "leanoverview-untouched-warmup",
+    "duration_seconds": 60.19,
+    "cpu_timebase_numer": 125,
+    "cpu_timebase_denom": 3,
+    "cpu_percent_one_core": 2.19,
+    "footprint_mib_median": 62.0,
+    "footprint_mib_peak": 78.52,
+    "footprint_mib_first": 0.08,
+    "footprint_mib_last": 58.63,
+    "rss_mib_median": 139.12,
+    "interrupt_wakeups_per_second": 8.59,
+    "window_seconds": {
+      "exposed": 59.72,
+      "covered": 0.0,
+      "unknown": 0.47
+    },
+    "sample_events": 29,
+    "observed_panes": [
+      "overview"
+    ],
+    "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+  },
+  "steady": {
+    "label": "leanoverview-untouched-steady",
+    "duration_seconds": 60.21,
+    "cpu_timebase_numer": 125,
+    "cpu_timebase_denom": 3,
+    "cpu_percent_one_core": 1.696,
+    "footprint_mib_median": 58.97,
+    "footprint_mib_peak": 63.69,
+    "footprint_mib_first": 58.63,
+    "footprint_mib_last": 59.45,
+    "rss_mib_median": 140.19,
+    "interrupt_wakeups_per_second": 11.71,
+    "window_seconds": {
+      "exposed": 60.19,
+      "covered": 0.02,
+      "unknown": 0.0
+    },
+    "sample_events": 29,
+    "observed_panes": [
+      "overview"
+    ],
+    "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+  },
+  "method": {
+    "source_revision": "5e83375ff788571e53249d4db388cd45a682efe8",
+    "platform": "Apple M5 Pro; 18 CPU cores; 20 GPU cores; 48 GiB RAM; macOS 27.0.1",
+    "compiler": "Swift 6.4, SDK 27, ARM64, -Osize -whole-module-optimization",
+    "full_lto": true,
+    "window_points": [
+      1180,
+      780
+    ],
+    "refresh_seconds": 2,
+    "history_seconds": 60,
+    "launch": "Fresh, pane selected at startup, separate memory-only preference domain; test entrypoint activates its own window",
+    "diagnostics": "Identical local event logger records only uptime, exposure and pane",
+    "ui_actions_during_measurement": false,
+    "external_workload_controlled": false,
+    "limitations": "One short local run per variant. Not a long-term plateau, universal hardware result or benchmark of CI-built downloads.",
+    "profile_binary_sha256": "ba919708c7be70138e896ee66560151d852b12350dd8ff95fd9e1328487a625c",
+    "date": "2026-10-30"
+  }
+}
