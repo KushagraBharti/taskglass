@@ -41,45 +41,6 @@ enum PlotUnit: Equatable {
 /// compact: overview cells with a top scale label. detailed: pane charts with a scale gutter and time axis.
 enum PlotStyle { case micro, inline, compact, detailed }
 
-/// Horizontal gridlines at even divisions; the baseline is drawn separately and stronger.
-struct PlotGrid: Shape {
-    let divisions: Int
-    var verticals = 0
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        for index in 0..<divisions {
-            let y = (rect.minY + rect.height * CGFloat(index) / CGFloat(divisions)).rounded() + 0.25
-            path.move(to: CGPoint(x: rect.minX, y: y)); path.addLine(to: CGPoint(x: rect.maxX, y: y))
-        }
-        if verticals > 0 {
-            for index in 1..<verticals {
-                let x = (rect.minX + rect.width * CGFloat(index) / CGFloat(verticals)).rounded() + 0.25
-                path.move(to: CGPoint(x: x, y: rect.minY)); path.addLine(to: CGPoint(x: x, y: rect.maxY))
-            }
-        }
-        return path
-    }
-}
-struct PlotBaseline: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { $0.move(to: CGPoint(x: rect.minX, y: rect.maxY - 0.25)); $0.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - 0.25)) }
-    }
-}
-/// Where sampling began, while history is shorter than the window. Distinguishes "not yet sampled" from zero.
-struct PlotStartMarker: Shape {
-    let points: [Point]
-    let window: Double
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        guard let first = points.first?.time, let end = points.last?.time, window > 0 else { return path }
-        let age = end - first
-        guard age < window * 0.97 else { return path }
-        let x = (rect.minX + rect.width * (1 - age / window)).rounded() + 0.25
-        path.move(to: CGPoint(x: x, y: rect.minY)); path.addLine(to: CGPoint(x: x, y: rect.maxY))
-        return path
-    }
-}
-
 struct TelemetryPlot: View {
     let points: [Point]
     let layers: [PlotLayer]
@@ -103,22 +64,15 @@ struct TelemetryPlot: View {
         switch style {
         case .micro:
             lines(lineWidth: 1)
-                .padding(.vertical, 2)
                 .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .accessibilityHidden(true)
         case .inline:
-            ZStack {
-                PlotBaseline().stroke(Palette.grid, lineWidth: Metrics.hairline)
-                lines(lineWidth: 1.25).padding(.vertical, 1)
-            }
+            lines(lineWidth: 1.25)
             .accessibilityHidden(true)
         case .compact:
             let available = hasData
             ZStack(alignment: .topLeading) {
-                PlotGrid(divisions: 2).stroke(Palette.grid, lineWidth: Metrics.hairline)
-                PlotBaseline().stroke(Palette.baseline, lineWidth: Metrics.hairline)
-                startMarker
-                lines(lineWidth: 1.25).padding(.top, 1)
+                lines(lineWidth: 1.25)
                 Text(unit.axis(ceiling)).font(.scale10).foregroundStyle(Palette.quiet).padding(.top, 3)
                 emptyState(hasData: available)
             }
@@ -129,11 +83,7 @@ struct TelemetryPlot: View {
             VStack(spacing: 6) {
                 HStack(spacing: 0) {
                     ZStack {
-                        // Vertical rules every 10 s, 30 s or 1 min for the 1, 3 and 10 minute windows.
-                        PlotGrid(divisions: 4, verticals: window >= 600 ? 10 : 6).stroke(Palette.grid, lineWidth: Metrics.hairline)
-                        PlotBaseline().stroke(Palette.baseline, lineWidth: Metrics.hairline)
-                        startMarker
-                        lines(lineWidth: 1.5).padding(.top, 1)
+                        lines(lineWidth: 1.5)
                         emptyState(hasData: available)
                     }
                     PlotScaleGutter(floor: floor, ceiling: ceiling, unit: unit, width: gutter).equatable()
@@ -146,13 +96,8 @@ struct TelemetryPlot: View {
     }
 
     private func lines(lineWidth: CGFloat) -> some View {
-        PlotLines(points: points, layers: layers, floor: floor, ceiling: ceiling, window: window,
-                  lineWidth: lineWidth, fillOpacity: style == .micro ? 0.18 : 0.13)
-    }
-
-    private var startMarker: some View {
-        PlotStartMarker(points: points, window: window)
-            .stroke(Palette.baseline, style: StrokeStyle(lineWidth: Metrics.hairline, dash: [2, 3]))
+        PlotRenderer(points: points, layers: layers, floor: floor, ceiling: ceiling, window: window,
+                  lineWidth: lineWidth, fillOpacity: style == .micro ? 0.18 : 0.13, style: style)
     }
 
     /// Two samples are needed before any rate exists, so an empty plot says which case applies.

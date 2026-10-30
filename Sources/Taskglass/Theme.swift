@@ -5,7 +5,6 @@ import AppKit
 enum Palette {
     static let background = Color.black
     static let surface = Color.white.opacity(0.04)
-    static let surfaceHover = Color.white.opacity(0.035)
     static let keyline = Color.white.opacity(0.085)
     static let grid = Color.white.opacity(0.07)
     static let baseline = Color.white.opacity(0.16)
@@ -15,8 +14,6 @@ enum Palette {
     static let quiet = Color.white.opacity(0.42)
 
     static let cpu = Color(nsColor: cpuNS)
-    static let performanceCores = Color(nsColor: performanceNS)
-    static let efficiencyCores = Color(nsColor: efficiencyNS)
     static let memory = Color(nsColor: memoryNS)
     static let gpu = Color(red: 1.00, green: 0.62, blue: 0.26)
     static let renderer = Color(red: 1.00, green: 0.83, blue: 0.36)
@@ -47,7 +44,6 @@ enum Palette {
 enum Metrics {
     static let pagePadding: CGFloat = 24
     static let bandGap: CGFloat = 12
-    static let sectionGap: CGFloat = 28
     static let cellHorizontal: CGFloat = 16
     static let cellVertical: CGFloat = 14
     static let bandRadius: CGFloat = 10

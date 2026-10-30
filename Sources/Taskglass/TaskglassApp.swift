@@ -13,14 +13,6 @@ struct SamplingConfiguration: Equatable {
     // do not ship the newer SwiftUI State macro plugin.
     private let monitorState = SwiftUI.State(initialValue: Monitor())
     private var monitor: Monitor { monitorState.wrappedValue }
-    init() {
-        // Refresh the Dock icon even when Launch Services still has a cached
-        // development bundle at this path. The resource is also declared in Info.plist.
-        if let url = Bundle.main.url(forResource: "Taskglass", withExtension: "icns"),
-           let icon = NSImage(contentsOf: url) {
-            NSApplication.shared.applicationIconImage = icon
-        }
-    }
     var body: some Scene {
         Window("Taskglass", id: "main") {
             ContentView(monitor: monitor)

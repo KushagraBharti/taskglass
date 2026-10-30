@@ -124,7 +124,11 @@ enum CellMeasurement: Equatable {
     let label = NSTextField(labelWithString: "")
     private let icon: NSImageView?
     private let bar: MeterBar?
-    private var renderedGroup: (title: String, count: Int)?
+    private enum TextContent {
+        case plain(String, quiet: Bool)
+        case group(String, count: Int)
+    }
+    private var content: TextContent?
     private var measurement: CellMeasurement?
     private var measurementQuiet = false
     private let baseFont: NSFont
@@ -166,10 +170,13 @@ enum CellMeasurement: Equatable {
     /// Plain value. Missing measurements read as a tertiary dash; quiet values as secondary.
     func show(_ value: String, quiet: Bool = false) {
         measurement = nil
-        if renderedGroup != nil {
-            // Coming back from an attributed group title: restore the column's plain type.
-            renderedGroup = nil; label.font = baseFont; label.stringValue = value
-        } else if label.stringValue != value { label.stringValue = value }
+        if case .plain(let previous, let previousQuiet) = content {
+            guard previous != value || previousQuiet != quiet else { return }
+            if previous != value { label.stringValue = value }
+        } else {
+            label.font = baseFont; label.stringValue = value
+        }
+        content = .plain(value, quiet: quiet)
         let color: NSColor = value == "—" ? .tertiaryLabelColor : quiet ? .secondaryLabelColor : .labelColor
         if label.textColor != color { label.textColor = color }
     }
@@ -181,8 +188,9 @@ enum CellMeasurement: Equatable {
     /// Application name with its member count set smaller and quieter, rebuilt only when either changes.
     /// A single-process application shows just its name; the disclosure triangle already says it has members.
     func showGroup(_ title: String, count: Int) {
-        guard renderedGroup?.title != title || renderedGroup?.count != count else { return }
-        renderedGroup = (title, count)
+        if case .group(let previous, let previousCount) = content, previous == title, previousCount == count { return }
+        measurement = nil
+        content = .group(title, count: count)
         let text = NSMutableAttributedString(string: title, attributes: TableKit.groupAttributes)
         if count > 1 {
             text.append(NSAttributedString(string: "  \(count) processes", attributes: TableKit.countAttributes))

@@ -4,6 +4,10 @@ Requested minimum: six continuous hours of active optimization. The user rejecte
 
 Branch: perf/six-hour-optimization. Baseline: v0.1.1 / c743e4f. No new dependencies or global installations. User prioritizes implementation; keep builds and correctness checks targeted and brief.
 
+## Current focus
+
+At 10:14 UTC the user paused new optimization for cleanup, then explicitly prioritized whole-app RAM and CPU reductions first. Controlled app-level measurements are the immediate priority; cleanup and packaging follow. The continuous run had accumulated about 4 hours 21 minutes before this steering. No six-hour completion claim.
+
 ## Current pass
 
 In progress: reduce process-group allocation/hashing, remove temporary sampler collections, reduce retained native outline payloads and unnecessary rendering work. Original grouping and differential microbenchmark saved under ignored .build/optimization. Preserve rate baseline resets, PID birth guards, missing readings and shared ANE accounting.
@@ -223,3 +227,31 @@ ANE rate construction reserves capacity from the known group count before insert
 ## Pass 35: isolate chart scales
 
 Detailed scale labels now receive only their numeric scale/unit/width, behind an equatable view boundary. They no longer capture the live history through the geometry closure. A focused 200-update host evaluated the original scale 200 times and the new scale zero times; an actual ceiling change still rebuilt it. Full plot update/layout improved 0.046 to 0.037 ms. Compact/detailed plots also compute availability once for the empty state and accessibility label; thumbnails remain free of that scan.
+
+## Whole-app RAM and CPU pass
+
+Measured baseline c743e4f and current candidates with the same SDK/toolchain, 1180×780 window, default 2 s cadence, 60 s warmup followed by 60 s measurement. CPU uses the corrected Mach timebase and means percent of one core. Exposure is recorded; external workloads remain uncontrolled.
+
+| Fully exposed measured interval | CPU | Median physical footprint | Peak footprint |
+| --- | ---: | ---: | ---: |
+| Starting Overview | 2.824% | 66.59 MiB | 68.20 MiB |
+| Intermediate Canvas Overview | 0.868% | 139.06 MiB | 225.06 MiB |
+| Native plots + normal bundle icon, Overview | 1.733% | 55.27 MiB | 58.24 MiB |
+| Starting CPU page after navigation | 6.150% | 211.61 MiB | 212.41 MiB |
+| Native plots + normal bundle icon, CPU page after navigation | 4.084% | 197.94 MiB | 214.61 MiB |
+
+The Canvas experiment improved CPU but regressed graphics memory. Replaced it with native Core Graphics drawing, preserving fill, dashes, gap handling and surrounding accessibility. Focused raster comparison differed by at most 1/255 in a few channels. Plot views redraw on resize and pass clicks to their containing buttons. Removed the development-only Dock icon override; the packaged Info.plist/ICNS remains the icon source. The combined Overview result is 39% less CPU and 17% lower median footprint in this local comparison. The two changes are not individually attributed.
+
+CPU-page memory still fluctuates and its peak did not improve. Investigating redundant rounded clipping separately. The later direct-launch fixture starts on CPU to avoid accessibility traversal and retained Overview state; do not compare its figures directly with the navigation runs above. One candidate interval was partly covered and is not a fully visible benchmark.
+
+## Plain table text reuse
+
+Visible process cells reuse unchanged plain strings/quiet state as well as grouped titles and numeric measurements. A 196-cell mixed update improved 0.031 to 0.011 ms in the focused fixture, with matching text, color, fonts and raster through group/plain/missing transitions. Group titles also invalidate the measurement cache. No row limit or refresh-frequency change.
+
+## Rejected path simplification
+
+Coalescing horizontal chart vertices reduced longest flat paths but saved only about 0.006 ms for the ordinary 181-point raster fixture and added state to segment handling. Retained the simpler geometry.
+
+## Shared native plot renderer
+
+Gridlines, baseline, start marker, fills and traces now share one AppKit drawing view. Removed the three redundant SwiftUI shape types and their layers. Full raster output matched exactly for all four chart styles at 180×60 and 521.5×196 points across 80 updates. Detailed large-chart draw improved 0.721 to 0.682 ms in this fixture; thumbnail time was unchanged. These are component timings, not another whole-app percentage. Release build passed. Removed five unused theme/history declarations during the source cleanup.

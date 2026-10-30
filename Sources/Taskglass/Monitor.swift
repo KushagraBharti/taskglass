@@ -93,7 +93,6 @@ import Observation
             rankResources()
         }
     }
-    var historyCapacity: Int { min(601, Int(historySeconds / interval) + 1) }
     // Passing history preserves Observation's dependency even on cache hits.
     func peak(_ series: MetricSeries) -> Double? { historyStatistics.summary(series, points: history).peak }
     func mean(_ series: MetricSeries) -> Double? { historyStatistics.summary(series, points: history).mean }
