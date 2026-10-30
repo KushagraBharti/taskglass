@@ -135,3 +135,9 @@ Switching to Overview/Processes releases the unused resource-list sample; leavin
 ## Pass 17: search and CPU detail work
 
 Name searches skip impossible PID matches and numeric searches try the cheap PID match first. A frozen 2,000-row filter kept identical results for text, numeric, empty and Unicode queries. Representative times: helper 1.290 to 1.155 ms, codex 1.251 to 1.117, missing text 1.315 to 1.160, numeric 15 2.098 to 1.994. A hyphen query remained essentially unchanged. CPU detail rendering reads core kinds once per body and computes group averages directly without temporary value arrays. Nice chart ceilings no longer allocate a mapped array. Release build passed.
+
+## Pass 18: integrated rendering profile
+
+Built the starting and current UI against the same SDK with an identical frozen 1,000-process fixture and 31-point history. Median forced update/layout times in one sequential run: Overview 12.795 to 11.501 ms, Processes 3.113 to 0.885, CPU 6.282 to 5.580, Memory 5.863 to 4.303, GPU 6.327 to 5.250, Neural Engine 6.389 to 4.677, Storage 6.537 to 4.666, Network 6.325 to 4.903, Battery 5.969 to 4.713, Temperatures 6.421 to 4.167. Not a live scrolling or whole-app CPU measurement. Data generation is excluded, but fixture metadata is recreated each update, unlike the optimized real sampler. Sequential external-load effects remain possible.
+
+The initial combined update/layout/bitmap result made Neural Engine look unusually slow. A five-second stack sample showed ~80% of main-thread samples in the forced bitmap capture, mostly Core Graphics pixel compositing. Separated layout from bitmap work rather than optimizing the diagnostic's raster overhead. Raw fixtures and profiles are in .build/optimization/pass18. The published app's native AX window and screenshot remain available; raising it now refreshed its visible readings, but a fresh exposure-classified live profile is still pending.
