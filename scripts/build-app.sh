@@ -5,10 +5,14 @@ export CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/module-cache"
 VERSION=$(tr -d '\n' < VERSION)
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo 'Invalid VERSION' >&2; exit 1; fi
-# -Osize retains safe Swift semantics; the unstripped executable stays in .build.
+# -Osize and full LTO retain safe Swift semantics and runtime reflection.
+# Keep the combined LTO object so dsymutil can produce usable crash symbols.
+# The unstripped executable, object and dSYM stay inside .build.
 # Explicit native engine avoids Swift 6.4 swiftbuild recording the deployment
 # target as the SDK version in LC_BUILD_VERSION with Command Line Tools.
-swift build -c release -Xswiftc -Osize --build-system native --scratch-path .build/native-release --cache-path .build/cache --config-path .build/config --security-path .build/security --manifest-cache local
+swift build -c release -Xswiftc -Osize --experimental-lto-mode full \
+    -Xlinker -object_path_lto -Xlinker "$PWD/.build/native-release/Taskglass-lto.o" \
+    --build-system native --scratch-path .build/native-release --cache-path .build/cache --config-path .build/config --security-path .build/security --manifest-cache local
 APP="$PWD/dist/Taskglass.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 if [ ! -f .build/Taskglass.icns ] || [ scripts/Icon.swift -nt .build/Taskglass.icns ] || [ Assets/Branding/taskglass-logo.png -nt .build/Taskglass.icns ]; then
