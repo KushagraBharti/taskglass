@@ -57,18 +57,23 @@ func sortProcesses(_ rows: inout [ProcessRow], key: ProcessSortKey, ascending: B
     }
     let tie: (ProcessRow, ProcessRow) -> Bool = { ascending ? $0.id < $1.id : $0.id > $1.id }
     switch key {
-    case .memory: sortByCachedKey(&rows, ascending: ascending, key: { $0.footprint ?? 0 }, tie: tie)
-    case .resident: sortByCachedKey(&rows, ascending: ascending, key: { $0.resident }, tie: tie)
-    case .threads: sortByCachedKey(&rows, ascending: ascending, key: { $0.threads }, tie: tie)
-    case .uid: sortByCachedKey(&rows, ascending: ascending, key: { $0.uid }, tie: tie)
-    case .cpu: sortByCachedKey(&rows, ascending: ascending, key: { $0.cpu ?? -1 }, tie: tie)
-    case .gpu: sortByCachedKey(&rows, ascending: ascending, key: { $0.gpuTime ?? -1 }, tie: tie)
-    case .ane: sortByCachedKey(&rows, ascending: ascending, key: { $0.aneGroupTime ?? -1 }, tie: tie)
-    case .neural: sortByCachedKey(&rows, ascending: ascending, key: { OptionalCounter($0.neuralMemory) }, tie: tie)
-    case .read: sortByCachedKey(&rows, ascending: ascending, key: { $0.readRate ?? -1 }, tie: tie)
-    case .write: sortByCachedKey(&rows, ascending: ascending, key: { $0.writeRate ?? -1 }, tie: tie)
-    case .disk:
-        sortByCachedKey(&rows, ascending: ascending, key: { row in row.readRate.flatMap { read in row.writeRate.map { read + $0 } } ?? -1 }, tie: tie)
+    case .memory, .resident:
+        sortByCachedKey(&rows, ascending: ascending, key: { key == .memory ? $0.footprint ?? 0 : $0.resident }, tie: tie)
+    case .threads, .uid:
+        sortByCachedKey(&rows, ascending: ascending, key: { key == .threads ? $0.threads : $0.uid }, tie: tie)
+    case .neural:
+        sortByCachedKey(&rows, ascending: ascending, key: { OptionalCounter($0.neuralMemory) }, tie: tie)
+    case .cpu, .gpu, .ane, .read, .write, .disk:
+        sortByCachedKey(&rows, ascending: ascending, key: { row -> Double in
+            switch key {
+            case .cpu: row.cpu ?? -1
+            case .gpu: row.gpuTime ?? -1
+            case .ane: row.aneGroupTime ?? -1
+            case .read: row.readRate ?? -1
+            case .write: row.writeRate ?? -1
+            default: row.readRate.flatMap { read in row.writeRate.map { read + $0 } } ?? -1
+            }
+        }, tie: tie)
     case .name, .pid: break // Handled by the direct-sort path above.
     }
 }
