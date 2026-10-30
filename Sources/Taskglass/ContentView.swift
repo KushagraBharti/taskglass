@@ -4,15 +4,14 @@ import AppKit
 struct ContentView: View {
     @Bindable var monitor: Monitor
     var pane: ResourcePane { monitor.pane ?? .overview }
-    var h: HardwareMetrics { monitor.snapshot.hardware }
     var body: some View {
         NavigationSplitView {
             List(selection: $monitor.pane) {
                 Label("Overview", systemImage: ResourcePane.overview.icon).foregroundStyle(Color(white: 0.88)).tag(ResourcePane.overview)
                 Label("Processes", systemImage: ResourcePane.processes.icon).foregroundStyle(Color(white: 0.88)).tag(ResourcePane.processes)
                 Section("Resources") {
-                    ForEach(ResourcePane.allCases.filter { $0 != .overview && $0 != .processes && ($0 != .battery || h.batteryPresent) }) { resource in
-                        railRow(resource).tag(resource)
+                    ForEach(ResourcePane.allCases.filter { $0 != .overview && $0 != .processes && ($0 != .battery || monitor.batteryPresent) }) { resource in
+                        ResourceRailRow(monitor: monitor, pane: resource).tag(resource)
                     }
                 }
             }
@@ -23,12 +22,12 @@ struct ContentView: View {
             .navigationTitle("Taskglass")
         } detail: {
             VStack(spacing: 0) {
-                if pane == .processes { processes }
+                if pane == .processes { ProcessWorkspace(monitor: monitor) }
                 else { PerformanceWorkspace(monitor: monitor, pane: pane) }
             }
             .background(Color.black)
             .navigationTitle(pane.title)
-            .navigationSubtitle(subtitle)
+            .modifier(WindowSubtitle(monitor: monitor, pane: pane))
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     if pane == .processes {
@@ -98,9 +97,26 @@ struct ContentView: View {
         .sheet(isPresented: $monitor.inspect) { MeasurementNotes { monitor.inspect = false } }
     }
 
-    // MARK: Processes page
+    private var scopeName: String { monitor.scope == 1 ? "My processes" : monitor.scope == 2 ? "Applications" : "All processes" }
+}
 
-    var processes: some View {
+/// Keep live subtitle counts out of the window's navigation/toolbar body.
+private struct WindowSubtitle: ViewModifier {
+    let monitor: Monitor
+    let pane: ResourcePane
+    func body(content: Content) -> some View { content.navigationSubtitle(subtitle) }
+    private var subtitle: String {
+        if monitor.paused { return "Paused" }
+        guard pane == .processes else { return monitor.chipName }
+        let shown = monitor.rows.count, total = monitor.accessibleProcessCount
+        if total > 0 && shown != total { return "\(shown) of \(total) processes" }
+        return "\(shown) processes, \(monitor.threadCount.formatted()) threads"
+    }
+}
+
+private struct ProcessWorkspace: View {
+    @Bindable var monitor: Monitor
+    var body: some View {
         ProcessTable(monitor: monitor)
             .overlay {
                 if monitor.rows.isEmpty {
@@ -122,18 +138,15 @@ struct ContentView: View {
     }
     var scopeName: String { monitor.scope == 1 ? "My processes" : monitor.scope == 2 ? "Applications" : "All processes" }
 
-    /// Counts describe what is listed: "12 of 694 processes" while filtered, threads only for the full list.
-    var subtitle: String {
-        if monitor.paused { return "Paused" }
-        guard pane == .processes else { return h.chip }
-        let shown = monitor.rows.count, total = monitor.accessibleProcessCount
-        if total > 0 && shown != total { return "\(shown) of \(total) processes" }
-        return "\(shown) processes, \(monitor.threadCount.formatted()) threads"
-    }
+}
 
-    // MARK: Sidebar
-
-    func railRow(_ pane: ResourcePane) -> some View {
+/// Each rail row observes its own displayed readings. Updating a thumbnail
+/// does not rebuild NavigationSplitView, the toolbar or unrelated controls.
+private struct ResourceRailRow: View {
+    let monitor: Monitor
+    let pane: ResourcePane
+    private var h: HardwareMetrics { monitor.snapshot.hardware }
+    var body: some View {
         let scale = railScale(pane)
         return HStack(spacing: 10) {
             TelemetryPlot(points: monitor.history, layers: [PlotLayer(series: pane.series, color: pane.color, filled: true)],

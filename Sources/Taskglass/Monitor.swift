@@ -5,6 +5,9 @@ import Observation
 
 @MainActor @Observable final class Monitor {
     var snapshot = Snapshot()
+    // Navigation depends on these stable facts, not each changing sample.
+    var chipName = "Apple silicon"
+    var batteryPresent = false
     var history: [Point] = [] { didSet { historyStatistics.invalidate() } }
     @ObservationIgnored private var historyStatistics = HistoryStatistics()
     var search = ""
@@ -189,6 +192,8 @@ import Observation
     }
     private func present(_ next: Snapshot, history points: [Point]) {
         stagedSnapshot = nil; stagedHistory = nil
+        if chipName != next.hardware.chip { chipName = next.hardware.chip }
+        if batteryPresent != next.hardware.batteryPresent { batteryPresent = next.hardware.batteryPresent }
         snapshot = next; history = points
         if processHistory.last?.time != selectedSamples.last?.time || processHistory.count != selectedSamples.count { processHistory = selectedSamples }
         if resourceSampleDate != lastProcessSampleDate {

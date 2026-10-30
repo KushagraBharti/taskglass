@@ -105,3 +105,9 @@ The shared table updater resolves the visible columns once, then retrieves each 
 Rejected fetching GPU owner and usage as separate registry properties. Alternating 100 live scans with 86 clients took 0.462 ms for the existing combined properties read and 0.599 ms for separate reads. Replacing sscanf with strtol saved only 0.008 ms and narrowed accepted owner formatting, so retained the existing parser. Neither experiment changed production code.
 
 Investigating whether the already-collected per-core CPU counters can also provide the aggregate CPU reading. Apple's current XNU host.c and processor.c use the same processor_cpu_load_info helper. Check the supported older release implementation and failure/source-transition handling before making this change. Sources: https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c and https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/processor.c . Continuous deadline remains 11:53:30 UTC; six hours have not elapsed.
+
+## Pass 12: isolate live readings from window navigation
+
+Moved resource rail rows, the live subtitle and process workspace into their own view bodies. The window root now reads stable chip/battery-presence properties, updated only when those facts change. Live CPU/history updates no longer rebuild NavigationSplitView and the toolbar. In an instrumented offscreen host, 30 changing samples evaluated the old ContentView root 31 times and the new root once. This proves the observation boundary; it is not an exposed-window smoothness claim. The release build passed.
+
+The aggregate CPU-counter investigation remains deferred; no C counter semantics changed. Both current XNU and the older source files were inspected, but a source-transition fallback would add complexity for one small RPC saving. Prioritizing UI invalidation and retained memory instead.
