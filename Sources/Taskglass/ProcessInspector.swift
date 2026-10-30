@@ -5,7 +5,7 @@ import AppKit
 /// trends, then the executable. Quit actions stay pinned at the bottom and are disabled, with a reason,
 /// for processes the user doesn't own and for any process missing from the latest sample.
 struct ProcessInspector: View {
-    @ObservedObject var monitor: Monitor
+    let monitor: Monitor
     /// Bumped when a background account-name lookup finishes, so the User row replaces the UID.
     private let names = SwiftUI.State(initialValue: 0)
 

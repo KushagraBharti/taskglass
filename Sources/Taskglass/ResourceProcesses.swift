@@ -3,7 +3,7 @@ import SwiftUI
 /// The same process outline in every resource pane. Pages whose resource cannot be attributed
 /// say so in one line; the chosen ranking always names the measurement actually shown.
 struct ResourceProcesses: View {
-    @ObservedObject var monitor: Monitor
+    @Bindable var monitor: Monitor
     let pane: ResourcePane
     var leaders: [ProcessRow] { monitor.resourceLeaders }
 

@@ -4,7 +4,7 @@ import AppKit
 /// Overview as an instrument rack: four bands whose column keylines line up vertically.
 /// Resources (4), environment (4), transport (2), cores and processes (2).
 struct OverviewDashboard: View {
-    @ObservedObject var monitor: Monitor
+    let monitor: Monitor
     var s: Snapshot { monitor.snapshot }
     var h: HardwareMetrics { s.hardware }
     var window: Double { monitor.historySeconds }

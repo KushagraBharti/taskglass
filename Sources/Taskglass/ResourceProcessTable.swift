@@ -13,7 +13,7 @@ import AppKit
 /// The ranking is always descending and has no ascending form, so columns carry no sort descriptors
 /// (and no sort arrow); a header click ranks by that column.
 struct ResourceProcessTable: NSViewRepresentable {
-    @ObservedObject var monitor: Monitor
+    let monitor: Monitor
     /// Rows visible without scrolling. The rest of the list scrolls inside the table.
     static let visibleRows = 12
     func makeCoordinator() -> Coordinator { Coordinator(monitor) }

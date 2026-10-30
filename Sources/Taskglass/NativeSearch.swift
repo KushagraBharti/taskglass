@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct NativeSearch: NSViewRepresentable {
-    @ObservedObject var monitor: Monitor
+    let monitor: Monitor
     func makeCoordinator() -> Coordinator { Coordinator(monitor) }
     func makeNSView(context: Context) -> NSSearchField {
         let field = NSSearchField()

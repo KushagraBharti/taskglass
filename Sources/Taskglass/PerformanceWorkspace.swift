@@ -92,7 +92,7 @@ extension PaneSection where Accessory == EmptyView {
 }
 
 struct PerformanceWorkspace: View {
-    @ObservedObject var monitor: Monitor
+    @Bindable var monitor: Monitor
     let pane: ResourcePane
     var s: Snapshot { monitor.snapshot }
     var h: HardwareMetrics { s.hardware }

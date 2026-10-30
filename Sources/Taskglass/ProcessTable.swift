@@ -3,7 +3,7 @@ import AppKit
 
 /// Main process list. Row positions are reused across samples; only on-screen cells are rewritten.
 struct ProcessTable: NSViewRepresentable {
-    @ObservedObject var monitor: Monitor
+    let monitor: Monitor
     func makeCoordinator() -> Coordinator { Coordinator(monitor) }
     func makeNSView(context: Context) -> NSScrollView {
         let table = ProcessTableView()

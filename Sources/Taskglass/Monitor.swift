@@ -1,50 +1,51 @@
 import SwiftUI
 import AppKit
 import SystemProbe
+import Observation
 
-@MainActor final class Monitor: ObservableObject {
-    @Published var snapshot = Snapshot()
-    @Published var history: [Point] = []
-    @Published var search = ""
-    @Published var interval = 2.0 { didSet { if [1.0, 2, 5].contains(interval) { preferences.save(interval, for: "interval") } } }
-    @Published var paused = false
-    @Published var selected: Int32? { didSet {
+@MainActor @Observable final class Monitor {
+    var snapshot = Snapshot()
+    var history: [Point] = []
+    var search = ""
+    var interval = 2.0 { didSet { if [1.0, 2, 5].contains(interval) { preferences.save(interval, for: "interval") } } }
+    var paused = false
+    var selected: Int32? { didSet {
         if oldValue != selected {
             trackedProcess = nil; selectedSamples.removeAll(keepingCapacity: true)
             if windowExposed { processHistory = [] }
         }
     } }
-    @Published var scope = 0
-    @Published var sort = "memory" { didSet { preferences.save(sort, for: "sort") } }
-    @Published var ascending = false { didSet { preferences.save(ascending, for: "ascending") } }
-    @Published var rows: [ProcessRow] = []
-    @Published var sensorScope = "All" { didSet { preferences.save(sensorScope, for: "sensorScope") } }
-    @Published var inspect = false
-    @Published var page = 1
-    @Published var pane: ResourcePane? = .overview
-    @Published var historySeconds = 60.0 { didSet { if [60.0, 180, 600].contains(historySeconds) { preferences.save(historySeconds, for: "historySeconds") } } }
-    @Published var overviewProcesses: [ProcessRow] = []
-    @Published var resourceSort = "cpu" { didSet {
+    var scope = 0
+    var sort = "memory" { didSet { preferences.save(sort, for: "sort") } }
+    var ascending = false { didSet { preferences.save(ascending, for: "ascending") } }
+    var rows: [ProcessRow] = []
+    var sensorScope = "All" { didSet { preferences.save(sensorScope, for: "sensorScope") } }
+    var inspect = false
+    var page = 1
+    var pane: ResourcePane? = .overview
+    var historySeconds = 60.0 { didSet { if [60.0, 180, 600].contains(historySeconds) { preferences.save(historySeconds, for: "historySeconds") } } }
+    var overviewProcesses: [ProcessRow] = []
+    var resourceSort = "cpu" { didSet {
         if let pane, pane != .overview, pane != .processes, ["cpu", "memory", "gpu", "ane", "neural", "disk", "read", "write"].contains(resourceSort) {
             paneRankings[pane.rawValue] = resourceSort
             preferences.save(paneRankings, for: "paneRankings")
         }
     } }
-    @Published var resourceGrouped = true { didSet { preferences.save(resourceGrouped, for: "resourceGrouped") } }
-    @Published var resourceLeaders: [ProcessRow] = []
-    @Published var resourceSampleDate: Date?
-    private var resourceSample: [ProcessRow] = []
-    private var overviewTick = 0
-    private var windowExposed = true
-    private var stagedHistory: [Point]?
-    private var stagedSnapshot: Snapshot?
-    private var lastProcessSampleDate: Date?
-    private var needsBaselineReset = false
+    var resourceGrouped = true { didSet { preferences.save(resourceGrouped, for: "resourceGrouped") } }
+    var resourceLeaders: [ProcessRow] = []
+    var resourceSampleDate: Date?
+    @ObservationIgnored private var resourceSample: [ProcessRow] = []
+    @ObservationIgnored private var overviewTick = 0
+    @ObservationIgnored private var windowExposed = true
+    @ObservationIgnored private var stagedHistory: [Point]?
+    @ObservationIgnored private var stagedSnapshot: Snapshot?
+    @ObservationIgnored private var lastProcessSampleDate: Date?
+    @ObservationIgnored private var needsBaselineReset = false
     private let preferences: AppPreferences
-    private var paneRankings: [String: String] = [:]
-    private var trackedProcess: ProcessRow?
-    private var selectedSamples: [Point] = []
-    @Published var processHistory: [Point] = []
+    @ObservationIgnored private var paneRankings: [String: String] = [:]
+    @ObservationIgnored private var trackedProcess: ProcessRow?
+    @ObservationIgnored private var selectedSamples: [Point] = []
+    var processHistory: [Point] = []
 
     convenience init() { self.init(preferences: .forApplication()) }
     init(preferences: AppPreferences) {
@@ -72,7 +73,9 @@ import SystemProbe
             preferences.save(1, for: "acceleratorRankingsVersion")
         }
     }
-    var accessibleProcessCount: Int { resourceSample.count }
+    // Sampling can continue behind another window. Depend on the presentation
+    // revision, never the private staging buffers, to avoid invisible redraws.
+    var accessibleProcessCount: Int { _ = resourceSampleDate; return resourceSample.count }
     var selectedProcessRecord: ProcessRow? { selection ?? trackedProcess }
     func activatePane(_ target: ResourcePane) {
         if pane != target { pane = target }
@@ -85,22 +88,31 @@ import SystemProbe
         }
     }
     var historyCapacity: Int { min(601, Int(historySeconds / interval) + 1) }
-    @Published var showingInspector = false
-    @Published var showGPU = true { didSet { preferences.save(showGPU, for: "showGPU") } }
-    @Published var showNeuralMemory = true { didSet { preferences.save(showNeuralMemory, for: "showNeuralMemory") } }
-    @Published var showResident = false { didSet { preferences.save(showResident, for: "showResident") } }
-    @Published var showDisk = false { didSet { preferences.save(showDisk, for: "showDisk") } }
-    @Published var showUser = false { didSet { preferences.save(showUser, for: "showUser") } }
-    var threadCount = 0
+    var showingInspector = false
+    var showGPU = true { didSet { preferences.save(showGPU, for: "showGPU") } }
+    var showNeuralMemory = true { didSet { preferences.save(showNeuralMemory, for: "showNeuralMemory") } }
+    var showResident = false { didSet { preferences.save(showResident, for: "showResident") } }
+    var showDisk = false { didSet { preferences.save(showDisk, for: "showDisk") } }
+    var showUser = false { didSet { preferences.save(showUser, for: "showUser") } }
+    @ObservationIgnored private var sampledThreadCount = 0
+    var threadCount: Int { _ = resourceSampleDate; return sampledThreadCount }
     let sampler = Sampler()
-    @Published var visible = true
+    var visible = true
     func arrange() {
-        let uid = getuid()
-        let appIDs = scope == 2 ? Set(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }.map(\.processIdentifier)) : []
-        rows = resourceSample.filter {
-            (scope != 1 || $0.uid == uid) && (scope != 2 || appIDs.contains($0.id)) &&
-            (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || String($0.id).contains(search))
-        }.sorted { processPrecedes($0, $1, key: sort, ascending: ascending) }
+        // Read observable settings once, outside the per-row filter and O(n log n)
+        // comparator. An unfiltered list also avoids a redundant full-array copy.
+        let filterScope = scope, query = search, key = sort, up = ascending
+        var arranged = resourceSample
+        if filterScope != 0 || !query.isEmpty {
+            let uid = getuid()
+            let appIDs = filterScope == 2 ? Set(NSWorkspace.shared.runningApplications.lazy.filter { $0.activationPolicy == .regular }.map(\.processIdentifier)) : []
+            arranged = resourceSample.filter {
+                (filterScope != 1 || $0.uid == uid) && (filterScope != 2 || appIDs.contains($0.id)) &&
+                (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) || String($0.id).contains(query))
+            }
+        }
+        arranged.sort { processPrecedes($0, $1, key: key, ascending: up) }
+        rows = arranged
     }
 
     func run() async {
@@ -133,7 +145,7 @@ import SystemProbe
                 if collect {
                     resourceSample = next.processes
                     lastProcessSampleDate = next.date
-                    threadCount = next.processes.reduce(0) { $0 + Int($1.threads) }
+                    sampledThreadCount = next.processes.reduce(0) { $0 + Int($1.threads) }
                     recordSelected(next, time: points.last!.time)
                 }
                 if windowExposed { present(next, history: points) }
@@ -192,7 +204,10 @@ import SystemProbe
         search = ""; scope = 0; selected = row.id; sort = resourceSort == "ane" ? "neural" : resourceSort; ascending = false
         showingInspector = true; pane = .processes
     }
-    func processRecord(_ pid: Int32) -> ProcessRow? { resourceSample.first { $0.id == pid } }
+    func processRecord(_ pid: Int32) -> ProcessRow? {
+        _ = resourceSampleDate
+        return resourceSample.first { $0.id == pid }
+    }
     var selection: ProcessRow? { selected.flatMap(processRecord) }
     func requestQuit(force: Bool) {
         guard let row = selection, row.id != getpid(), row.uid == getuid() else { return }

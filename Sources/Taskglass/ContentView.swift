@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
-    @ObservedObject var monitor: Monitor
+    @Bindable var monitor: Monitor
     var pane: ResourcePane { monitor.pane ?? .overview }
     var h: HardwareMetrics { monitor.snapshot.hardware }
     var body: some View {
