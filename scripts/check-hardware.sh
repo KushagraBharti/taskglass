@@ -2,10 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .build/checks
-xcrun clang -O2 -I Sources/SystemProbe/include Sources/SystemProbe/hardware.c Tests/HardwareCheck.c -framework IOKit -framework CoreFoundation -o .build/checks/hardware-check
+xcrun clang -O2 -I Sources/SystemProbe/include Sources/SystemProbe/hardware.c Tests/Fixtures/HardwareCheck.c -framework IOKit -framework CoreFoundation -o .build/checks/hardware-check
 .build/checks/hardware-check
 if [ "${1:-}" = "--gpu-workload" ]; then
-    xcrun swiftc -O -module-cache-path .build/module-cache -framework Metal Tests/GPULoad.swift -o .build/checks/gpu-load
+    xcrun swiftc -O -module-cache-path .build/module-cache -framework Metal Tests/Fixtures/GPULoad.swift -o .build/checks/gpu-load
     rm -f .build/checks/gpu-load-ready
     .build/checks/gpu-load &
     workload_pid=$!

@@ -1,0 +1,67 @@
+{
+  "warmup": {
+    "label": "baselinecpu-untouched-warmup",
+    "duration_seconds": 60.23,
+    "cpu_timebase_numer": 125,
+    "cpu_timebase_denom": 3,
+    "cpu_percent_one_core": 3.224,
+    "footprint_mib_median": 162.42,
+    "footprint_mib_peak": 183.69,
+    "footprint_mib_first": 4.13,
+    "footprint_mib_last": 183.69,
+    "rss_mib_median": 169.81,
+    "interrupt_wakeups_per_second": 4.53,
+    "window_seconds": {
+      "exposed": 59.94,
+      "covered": 0.01,
+      "unknown": 0.28
+    },
+    "sample_events": 30,
+    "observed_panes": [
+      "cpu"
+    ],
+    "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+  },
+  "steady": {
+    "label": "baselinecpu-untouched-steady",
+    "duration_seconds": 60.22,
+    "cpu_timebase_numer": 125,
+    "cpu_timebase_denom": 3,
+    "cpu_percent_one_core": 2.562,
+    "footprint_mib_median": 162.22,
+    "footprint_mib_peak": 183.75,
+    "footprint_mib_first": 183.69,
+    "footprint_mib_last": 168.58,
+    "rss_mib_median": 156.36,
+    "interrupt_wakeups_per_second": 2.52,
+    "window_seconds": {
+      "exposed": 60.2,
+      "covered": 0.02,
+      "unknown": 0.0
+    },
+    "sample_events": 29,
+    "observed_panes": [
+      "cpu"
+    ],
+    "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+  },
+  "method": {
+    "source_revision": "c743e4f6bb61100a37e5fa0a2efaefcee35cf077",
+    "platform": "Apple M5 Pro; 18 CPU cores; 20 GPU cores; 48 GiB RAM; macOS 27.0.1",
+    "compiler": "Swift 6.4, SDK 27, ARM64, -Osize -whole-module-optimization",
+    "full_lto": false,
+    "window_points": [
+      1180,
+      780
+    ],
+    "refresh_seconds": 2,
+    "history_seconds": 60,
+    "launch": "Fresh, pane selected at startup, separate memory-only preference domain; test entrypoint activates its own window",
+    "diagnostics": "Identical local event logger records only uptime, exposure and pane",
+    "ui_actions_during_measurement": false,
+    "external_workload_controlled": false,
+    "limitations": "One short local run per variant. Not a long-term plateau, universal hardware result or benchmark of CI-built downloads.",
+    "profile_binary_sha256": "1e5b8a3e7bf73449fa11554fbdf1e407b955cc03853645a4671d69feb1ab1bc5",
+    "date": "2026-10-30"
+  }
+}

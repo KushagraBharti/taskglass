@@ -95,6 +95,7 @@ int tg_processes(TGProcess **output) {
  if(count<=0) {free(pids);*output=NULL;return 0;}
  TGProcess *rows=calloc(count,sizeof(TGProcess)); int used=0;
  if(!rows) {free(pids);*output=NULL;return 0;}
+ const int ane_supported=tg_ane_accounting_supported();
  for(int i=0;i<count;i++) {
   if(pids[i]<=0) continue;
   struct proc_taskallinfo info={0};
@@ -109,7 +110,7 @@ int tg_processes(TGProcess **output) {
   union { uint64_t words[128]; struct rusage_info_v2 prefix; } usage={0};
   if(proc_pid_rusage(r->pid,6,(rusage_info_t *)&usage)==0) {
    r->footprint=usage.prefix.ri_phys_footprint;r->disk_read=usage.prefix.ri_diskio_bytesread;r->disk_write=usage.prefix.ri_diskio_byteswritten;r->footprint_valid=1;
-   if(tg_ane_accounting_supported()) {r->neural_footprint=usage.words[46];r->neural_valid=1;}
+   if(ane_supported) {r->neural_footprint=usage.words[46];r->neural_valid=1;}
   } else {
    struct rusage_info_v2 fallback={0};
    if(proc_pid_rusage(r->pid,RUSAGE_INFO_V2,(rusage_info_t *)&fallback)==0) {r->footprint=fallback.ri_phys_footprint;r->disk_read=fallback.ri_diskio_bytesread;r->disk_write=fallback.ri_diskio_byteswritten;r->footprint_valid=1;}

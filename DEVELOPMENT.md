@@ -10,15 +10,15 @@ The app has no package dependencies, web view, privileged helper, daemon, login 
 
 - Direct Mach, libproc and IOKit calls avoid launching monitoring subprocesses.
 - A sampler actor collects off the main thread. Paths and app identities are cached until PID/start identity changes. Directory account-name lookups use a bounded utility queue.
-- Histories retain at most 601 system points and 181 selected-process points. Icon/account caches are bounded. Cached process icons are rendered at 80×80 pixels, enough for the 40 pt inspector at 2x, rather than retaining every source representation. No monitoring history is written to disk.
-- Vector paths and a small AppKit core map replace a charting runtime. There is no continuous animation, Canvas, drawingGroup or external font.
+- Histories retain at most 601 system points and 181 selected-process points. Icon/account caches are bounded. The list cache holds at most 256 icons at 32×32 pixels; the inspector holds 16 at 80×80 pixels. Together their pixel storage is about 1.4 MiB, excluding AppKit caches. No monitoring history is written to disk.
+- One AppKit drawing view renders each chart, including its grid and traces. Core maps also use AppKit. There is no charting runtime, continuous animation, Canvas, drawingGroup or external font.
 - Native tables reuse visible cells. Resource outlines use positional slots, with expansion and selection following content identity across re-ranking. Full reloads are reserved for initial display and grouping changes.
 - Group aggregates are calculated once; helpers use their outer app bundle. Overview selects five leaders without sorting a second full array. Resource views sort their shared unsorted source once.
 - Overview and resource contexts without an active process-counter source collect process data every third tick. CPU, memory, storage, GPU and Neural Engine views collect on each tick. Process deltas have their own elapsed clock.
 - CPU/GPU temperature summaries, fans, battery and capacity refresh every 10 seconds. Full IOHID sensor polling runs on the Temperatures page or as an SMC fallback. Handles and sensor metadata are reused.
 - CLPC setup constructs only three recognized descriptors instead of enumerating the entire IOReport legend.
 - Covered windows keep bounded history without publishing invisible UI updates. Pause, hide and minimize cancel periodic sampling. Resume/wake reset rate baselines.
-- Release builds use the explicit native SwiftPM engine and safe `-Osize` optimization, strip distribution-only symbols, and retain the unstripped build in `.build`. There is no `-Ounchecked`.
+- Release builds use the explicit native SwiftPM engine and safe `-Osize` optimization and full link-time optimization, strip distribution-only symbols, and retain the unstripped build and dSYM in `.build`. There is no `-Ounchecked`.
 
 See [measurements](measurements/README.md) for measured costs and limitations. Sampler timings exclude UI work and are not whole-app CPU claims.
 
@@ -34,7 +34,7 @@ The optional six-second Metal and Core ML fixtures validated real GPU PID attrib
 
 ## Design and verification
 
-The requested Claude Opus 5.5 passes used the existing Claude CLI and frontend-design guidance. They refined shared components, navigation, plots, native process tables and the inspector. Reviews in `docs/` distinguish source review from live UI verification. Raw prompts/tool output stay ignored in `.build`. No new design package was installed.
+The interface shares typography, colors, bands, chart rendering and native table cells. Historical design reviews and superseded measurements remain in Git history; current behavior and limitations belong in this document and the measurement summary.
 
 The final native-engine pass visited all resource pages, checked full grouped browsing and search, process trends and self-quit protection, and verified reopening after close. It also fixed paused navigation to use the retained process sample rather than a system-only snapshot. A regression test covers that case.
 
@@ -57,3 +57,16 @@ For diagnostics only, launch with `--profile-events` and redirect stderr under `
 On the development Swift 6.4 Command Line Tools, the default swiftbuild engine compiled with SDK 27 but recorded SDK 14 in LC_BUILD_VERSION. An identical native-engine build recorded minimum OS 14 and SDK 27 correctly. The build script selects `--build-system native` for the preview. Swift 6.4 warns that this engine is deprecated, so this workaround needs revisiting when the upstream engine is corrected or native support is removed. CI uses Swift toolchains supplied by its standard macOS runners.
 
 The first CI pass found that the macOS 15 runner has Swift 6.1. Core tests passed, but an unnecessary tools-version 6.2 manifest requirement blocked the app build. The manifest now requires Swift 6.0; no 6.2-only manifest API is used. Release validation still requires SDK 26+ metadata.
+
+## Source layout
+
+- `Sources/Taskglass/App`: entry point and preferences.
+- `Sources/Taskglass/Monitoring`: sampling, hardware, accounting and lifecycle.
+- `Sources/Taskglass/Processes`: ordering, grouping and native process tables.
+- `Sources/Taskglass/Charts`: histories, scales and drawing.
+- `Sources/Taskglass/UI`: screens, inspector and shared presentation components.
+- `Sources/SystemProbe`: C interfaces to macOS counters.
+- `Tests/TaskglassTests`: correctness and lifecycle checks; `Tests/Fixtures`: bounded workloads and probe tools.
+- `scripts/lib/check-build.sh`: shared source lists and compiler options for standalone checks.
+
+The selected pane is the single navigation state; the redundant numeric page flag has been removed. SwiftPM discovers Swift files recursively. No generated code belongs in Sources.
