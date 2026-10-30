@@ -191,3 +191,7 @@ The accumulated numeric/name changes passed the native outline's 80-cycle select
 ## Pass 27: share numeric-sort implementations
 
 Combined columns that use the same key representation so key selection happens once per row and the compact sort implementation is shared. Full-LTO machine code shrank 2,480 bytes; aligned executable size changed only 16 bytes, so this is not a meaningful download-size gain. Alternating 750/2,000-row comparisons preserved ordering and showed no material regression; disk/read sorting improved another 4–7% in the fixture. Release build passed. The current native app also rendered the live dashboard and correctly sorted the main table by name.
+
+## Pass 28: reuse core tile drawing objects
+
+Core tiles keep their rounded paths, fixed label measurements and last rendered value/color. Resizing or topology changes rebuild the affected geometry; changing utilization refreshes the value. Exact raster comparison passed at 1x/2x, different widths/core counts, empty placeholders and nonfinite inputs. An 18-core draw improved 0.938 to 0.793 ms with mostly idle cores and 0.959 to 0.892 ms when every core changed. The small caches live with the view. Release build passed.

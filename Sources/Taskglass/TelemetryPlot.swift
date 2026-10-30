@@ -315,33 +315,61 @@ struct CoreTileMap: NSViewRepresentable {
                 counts[k, default: 0] += 1
                 return k == "Cores" ? "C\(counts[k]!)" : "\(k.prefix(1))\(counts[k]!)"
             }
+            drawLabels = labels.map { $0 as NSString }
+            labelSizes = drawLabels.map { $0.size(withAttributes: Self.labelAttributes) }
+            coreColors = order.map { Palette.coreNS(kind($0)) }
+            for tile in tiles { tile.usage = nil }
         }
+        private static let labelAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.white.withAlphaComponent(0.62)]
+        private static let valueAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.white.withAlphaComponent(0.95)]
+        private static let trackColor = NSColor.white.withAlphaComponent(0.05)
+        // A tile's geometry survives samples. Idle cores also reuse their
+        // color, formatted value and text measurement until utilization changes.
+        private final class Tile {
+            let path: NSBezierPath
+            let rect: CGRect
+            var usage: Double?
+            var color = NSColor.clear
+            var value: NSString = ""
+            var valueSize = NSSize.zero
+            init(_ rect: CGRect) { self.rect = rect; path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4) }
+        }
+        private var tiles: [Tile] = []
+        private var tileWidth: CGFloat = -1
+        private var drawLabels: [NSString] = []
+        private var labelSizes: [NSSize] = []
+        private var coreColors: [NSColor] = []
         override func draw(_ dirtyRect: NSRect) {
             let columns = CoreTileMap.columns, gap = CoreTileMap.gap, height = CoreTileMap.tileHeight
             let width = (bounds.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
-            let labelAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.white.withAlphaComponent(0.62)]
-            let valueAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.white.withAlphaComponent(0.95)]
+            let labelAttributes = Self.labelAttributes, valueAttributes = Self.valueAttributes
+            let count = values.isEmpty ? kinds.count : values.count
+            if tiles.count != count || tileWidth != width {
+                tileWidth = width
+                tiles = (0..<count).map { position in
+                    Tile(NSRect(x: CGFloat(position % columns) * (width + gap), y: CGFloat(position / columns) * (height + gap), width: width, height: height))
+                }
+            }
             // Placeholder tiles before the first two samples, so the grid keeps its shape.
             if values.isEmpty {
-                for position in 0..<max(0, kinds.count) {
-                    let rect = NSRect(x: CGFloat(position % columns) * (width + gap), y: CGFloat(position / columns) * (height + gap), width: width, height: height)
-                    NSColor.white.withAlphaComponent(0.05).setFill(); NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
-                }
+                Self.trackColor.setFill()
+                for tile in tiles { tile.path.fill() }
                 return
             }
             for (position, index) in order.enumerated() {
-                let k = kind(index)
-                let rect = NSRect(x: CGFloat(position % columns) * (width + gap), y: CGFloat(position / columns) * (height + gap), width: width, height: height)
-                let tile = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
-                NSColor.white.withAlphaComponent(0.05).setFill(); tile.fill()
+                let tile = tiles[position], rect = tiles[position].rect
+                Self.trackColor.setFill(); tile.path.fill()
                 let usage = min(100, max(0, values[index]))
-                Palette.coreNS(k).withAlphaComponent(0.12 + usage / 100 * 0.68).setFill(); tile.fill()
-                let label = labels[position] as NSString
-                let labelSize = label.size(withAttributes: labelAttributes)
+                if tile.usage != usage {
+                    tile.usage = usage
+                    tile.color = coreColors[position].withAlphaComponent(0.12 + usage / 100 * 0.68)
+                    tile.value = decimal(usage, places: 0) as NSString
+                    tile.valueSize = tile.value.size(withAttributes: valueAttributes)
+                }
+                tile.color.setFill(); tile.path.fill()
+                let label = drawLabels[position], labelSize = labelSizes[position]
                 label.draw(at: NSPoint(x: rect.minX + 7, y: rect.midY - labelSize.height / 2), withAttributes: labelAttributes)
-                let value = decimal(usage, places: 0) as NSString
-                let valueSize = value.size(withAttributes: valueAttributes)
-                value.draw(at: NSPoint(x: rect.maxX - 7 - valueSize.width, y: rect.midY - valueSize.height / 2), withAttributes: valueAttributes)
+                tile.value.draw(at: NSPoint(x: rect.maxX - 7 - tile.valueSize.width, y: rect.midY - tile.valueSize.height / 2), withAttributes: valueAttributes)
             }
         }
     }
