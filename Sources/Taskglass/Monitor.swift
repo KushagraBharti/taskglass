@@ -39,6 +39,7 @@ import Observation
     var resourceLeaders: [ProcessRow] = []
     var resourceSampleDate: Date?
     @ObservationIgnored private var resourceSample: [ProcessRow] = []
+    @ObservationIgnored private var nameOrder = ProcessNameOrder()
     @ObservationIgnored private var overviewTick = 0
     @ObservationIgnored private var windowExposed = true
     @ObservationIgnored private var stagedHistory: [Point]?
@@ -86,7 +87,7 @@ import Observation
         page = target == .processes ? 0 : 1
         if target == .processes { resourceLeaders = []; overviewProcesses = []; arrange() }
         else {
-            showingInspector = false; rows = []
+            showingInspector = false; rows = []; nameOrder.reset()
             if target != .overview { overviewProcesses = [] }
             resourceSort = paneRankings[target.rawValue] ?? (target == .memory ? "memory" : target == .storage ? "disk" : target == .gpu ? "gpu" : target == .neural ? (ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 ? "ane" : "neural") : "cpu")
             rankResources()
@@ -122,7 +123,8 @@ import Observation
                 (query.isEmpty || (searchesPID && String($0.id).contains(query)) || $0.name.localizedCaseInsensitiveContains(query))
             }
         }
-        sortProcesses(&arranged, key: key, ascending: up)
+        if key == .name { nameOrder.sort(&arranged, ascending: up) }
+        else { nameOrder.reset(); sortProcesses(&arranged, key: key, ascending: up) }
         rows = arranged
     }
 
