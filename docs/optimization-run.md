@@ -199,3 +199,15 @@ Core tiles keep their rounded paths, fixed label measurements and last rendered 
 ## Pass 29: skip impossible outline expansion work
 
 The outline queries AppKit expansion state only for slots that are or were groups. Individual selection searches also skip those queries. The native viewport fixture improved ungrouped 1,000-row updates from 0.428 to 0.400 ms; grouped updates were essentially unchanged. Expansion, collapse, helper selection and regrouping passed the existing 80-cycle native check. An initial fixture omitted the enclosing scroll view and accidentally refreshed all rows; corrected that before using the timing.
+
+## Pass 30 investigation
+
+Profiled the scoped app’s process table. A custom NSView/NSTextFieldCell label reduced construction/update cost in isolation but changed text contrast; rejected it. Disabling autoresizing-mask constraints on existing cell subviews showed no meaningful constraint or timing improvement, so those flags were also reverted. No renderer substitute shipped. Native accessibility inspection materialized about 100 rows, so the resulting heap is not a typical untouched-window footprint baseline.
+
+## Pass 31: consolidate chart drawing
+
+Each chart now draws its layers in one Canvas rather than separate SwiftUI shape subtrees for every fill/stroke. Paths, gaps, dashes, scales and surrounding accessibility remain unchanged. Focused update/layout improved 0.043 to 0.016 ms for a thumbnail and 0.228 to 0.112 ms for a 181-point detailed chart. Raster comparison differed only by up to 2/255 in edge channel rounding. Alternating full-dashboard Overview/CPU/GPU fixtures showed no meaningful overall timing regression or reliable whole-dashboard improvement.
+
+## Pass 32: temporary formatter storage
+
+Formatting writes into a bounded temporary stack buffer, then creates the final string. Small results use inline Swift string storage instead of reserving a 64-byte heap string. Focused time improved 0.103 to 0.075 microseconds. All 180,144 Foundation parity cases matched, including extreme values, rounding boundaries, random bit patterns and process locales. No formatting or precision changes.
