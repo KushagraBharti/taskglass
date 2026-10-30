@@ -84,9 +84,10 @@ import Observation
     func activatePane(_ target: ResourcePane) {
         if pane != target { pane = target }
         page = target == .processes ? 0 : 1
-        if target == .processes { arrange() }
+        if target == .processes { resourceLeaders = []; overviewProcesses = []; arrange() }
         else {
             showingInspector = false; rows = []
+            if target != .overview { overviewProcesses = [] }
             resourceSort = paneRankings[target.rawValue] ?? (target == .memory ? "memory" : target == .storage ? "disk" : target == .gpu ? "gpu" : target == .neural ? (ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 ? "ane" : "neural") : "cpu")
             rankResources()
         }
@@ -206,7 +207,10 @@ import Observation
     // The native outline sorts app families and their children itself. Keep one shared
     // source array here, rather than sorting a second full copy on every sample.
     func rankResources() {
-        if pane == .overview || pane == nil { overviewProcesses = rankedProcesses(resourceSample, key: "cpu", limit: 5) }
+        if pane == .overview || pane == nil {
+            resourceLeaders = []
+            overviewProcesses = rankedProcesses(resourceSample, key: "cpu", limit: 5)
+        }
         else { resourceLeaders = resourceSample }
     }
     func openProcess(_ row: ProcessRow) {

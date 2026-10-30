@@ -18,7 +18,7 @@ struct GPUAccounting {
     }
     private var previous: [UInt64: Entry] = [:]
     private var time: Double?
-    mutating func reset() { previous.removeAll(keepingCapacity: true); time = nil }
+    mutating func reset() { previous = [:]; time = nil }
 
     mutating func update(_ clients: [GPUClientCounter], births currentBirths: [Int32: UInt64], now: Double, available: Bool) -> [Int32: Double] {
         update(clients, birthForPID: { currentBirths[$0] }, now: now, available: available)
@@ -55,7 +55,7 @@ struct GPUAccounting {
 struct ANEAccounting {
     private var previous: [UInt64: UInt64] = [:]
     private var time: Double?
-    mutating func reset() { previous.removeAll(keepingCapacity: true); time = nil }
+    mutating func reset() { previous = [:]; time = nil }
     mutating func update(_ current: [UInt64: UInt64], now: Double) -> [UInt64: Double] {
         let elapsed = time.map { now - $0 }
         defer { previous = current; time = now.isFinite ? now : nil }

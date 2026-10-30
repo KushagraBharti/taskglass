@@ -388,24 +388,17 @@ private struct SensorSection: View, Equatable {
     }
 }
 
-/// Filtered, ordered sensor rows. Readings refresh every 10 s at most, so most samples reuse the last
-/// order instead of re-sorting ~130 names with a localized compare. Holds one list.
+/// Called only when the equatable sensor section changes. Keep derived rows in
+/// that view's lifetime rather than retaining the last sensor table globally.
 @MainActor enum SensorRows {
-    private static var input: [TemperatureReading] = []
-    private static var scope = ""
-    private static var output: [TemperatureReading] = []
     static func rows(_ readings: [TemperatureReading], scope next: String) -> [TemperatureReading] {
-        let same = next == scope && readings == input
-        guard !same else { return output }
         let order = PerformanceWorkspace.sensorOrder
-        input = readings; scope = next
-        output = readings.filter { next == "All" || $0.group == next }.sorted {
+        return readings.filter { next == "All" || $0.group == next }.sorted {
             let a = order.firstIndex(of: $0.group) ?? 9, b = order.firstIndex(of: $1.group) ?? 9
             if a != b { return a < b }
             let comparison = $0.name.localizedStandardCompare($1.name)
             return comparison == .orderedSame ? $0.id < $1.id : comparison == .orderedAscending
         }
-        return output
     }
 }
 

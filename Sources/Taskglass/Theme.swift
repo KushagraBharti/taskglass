@@ -29,13 +29,13 @@ enum Palette {
     static let power = Color(red: 1.00, green: 0.82, blue: 0.32)
     static let fan = Color(white: 0.78)
 
-    static var gpuNS: NSColor { NSColor(srgbRed: 1, green: 0.62, blue: 0.26, alpha: 1) }
-    static var neuralNS: NSColor { NSColor(srgbRed: 1, green: 0.43, blue: 0.64, alpha: 1) }
-    static var cpuNS: NSColor { NSColor(srgbRed: 0.35, green: 0.78, blue: 0.98, alpha: 1) }
-    static var performanceNS: NSColor { NSColor(srgbRed: 0.27, green: 0.53, blue: 1.00, alpha: 1) }
-    static var efficiencyNS: NSColor { NSColor(srgbRed: 0.36, green: 0.86, blue: 0.80, alpha: 1) }
-    static var memoryNS: NSColor { NSColor(srgbRed: 0.71, green: 0.52, blue: 1.00, alpha: 1) }
-    static var storageNS: NSColor { NSColor(srgbRed: 0.33, green: 0.85, blue: 0.68, alpha: 1) }
+    static let gpuNS = NSColor(srgbRed: 1, green: 0.62, blue: 0.26, alpha: 1)
+    static let neuralNS = NSColor(srgbRed: 1, green: 0.43, blue: 0.64, alpha: 1)
+    static let cpuNS = NSColor(srgbRed: 0.35, green: 0.78, blue: 0.98, alpha: 1)
+    static let performanceNS = NSColor(srgbRed: 0.27, green: 0.53, blue: 1.00, alpha: 1)
+    static let efficiencyNS = NSColor(srgbRed: 0.36, green: 0.86, blue: 0.80, alpha: 1)
+    static let memoryNS = NSColor(srgbRed: 0.71, green: 0.52, blue: 1.00, alpha: 1)
+    static let storageNS = NSColor(srgbRed: 0.33, green: 0.85, blue: 0.68, alpha: 1)
 
     static func coreNS(_ kind: String) -> NSColor {
         kind == "Super" ? cpuNS : kind == "Efficiency" ? efficiencyNS : performanceNS

@@ -215,10 +215,11 @@ struct CoreHeatmap: NSViewRepresentable {
     func updateNSView(_ view: HeatmapView, context: Context) {
         // History only ever appends and trims, so its ends and length identify what is drawn.
         // Any other publish (selection, preferences, hardware refresh) leaves the heatmap alone.
-        let signature = "\(points.count):\(points.first?.time ?? 0):\(points.last?.time ?? 0):\(window):\(prefix):\(indices)"
-        guard view.signature != signature else { return }
-        view.signature = signature
-        view.points = points; view.indices = indices; view.prefix = prefix; view.tint = Palette.coreNS(kind); view.timeWindow = window
+        guard view.points.count != points.count || view.points.first?.time != points.first?.time
+            || view.points.last?.time != points.last?.time || view.timeWindow != window
+            || view.prefix != prefix || view.kind != kind || view.indices != indices else { return }
+        view.points = points; view.indices = indices; view.prefix = prefix; view.kind = kind
+        view.tint = Palette.coreNS(kind); view.timeWindow = window
         view.needsDisplay = true
         let last = points.last
         view.setAccessibilityLabel("\(kind) core history. " + indices.enumerated().map { offset, index in
@@ -227,8 +228,15 @@ struct CoreHeatmap: NSViewRepresentable {
     }
     final class HeatmapView: NSView {
         var points: [Point] = [], indices: [Int] = []
-        var prefix = "", timeWindow = 180.0, signature = ""
-        var tint: NSColor = Palette.performanceNS
+        var prefix = "", kind = "", timeWindow = 180.0
+        var tint: NSColor = Palette.performanceNS {
+            didSet { if tint != oldValue { levelColors = Self.colors(for: tint) } }
+        }
+        private var levelColors = colors(for: Palette.performanceNS)
+        private static let trackColor = NSColor.white.withAlphaComponent(0.05).cgColor
+        private static func colors(for tint: NSColor) -> [CGColor] {
+            (0..<8).map { tint.withAlphaComponent(CoreHeatmap.alpha(level: $0)).cgColor }
+        }
         private let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]
         private let valueAttributes: [NSAttributedString.Key: Any] = [
@@ -259,10 +267,10 @@ struct CoreHeatmap: NSViewRepresentable {
             }
             guard let context = NSGraphicsContext.current?.cgContext else { return }
             context.saveGState()
-            context.setFillColor(NSColor.white.withAlphaComponent(0.05).cgColor)
+            context.setFillColor(Self.trackColor)
             context.addPath(geometry.track); context.fillPath()
             for (level, path) in geometry.levels.enumerated() where !path.isEmpty {
-                context.setFillColor(tint.withAlphaComponent(CoreHeatmap.alpha(level: level)).cgColor)
+                context.setFillColor(levelColors[level])
                 context.addPath(path); context.fillPath()
             }
             context.restoreGState()

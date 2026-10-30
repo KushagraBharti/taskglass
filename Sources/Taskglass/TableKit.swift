@@ -201,6 +201,7 @@ enum CellMeasurement: Equatable {
 
 /// Relative level drawn once per change. A nil fraction hides the bar and its track.
 @MainActor final class MeterBar: NSView {
+    private static let trackColor = NSColor.white.withAlphaComponent(0.08)
     private var fraction: Double?
     private var tint = NSColor.controlAccentColor
     func update(fraction next: Double?, tint nextTint: NSColor) {
@@ -212,7 +213,7 @@ enum CellMeasurement: Equatable {
     }
     override func draw(_ dirtyRect: NSRect) {
         guard let fraction, fraction.isFinite else { return }
-        NSColor.white.withAlphaComponent(0.08).setFill()
+        Self.trackColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 1.5, yRadius: 1.5).fill()
         tint.setFill()
         let width = max(fraction > 0 ? 1.5 : 0, bounds.width * min(1, max(0, fraction)))

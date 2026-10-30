@@ -125,7 +125,7 @@ actor Sampler {
     private var previous: TGSystem?
     private var time: TimeInterval?
     private var processes: [Int32: (birth: UInt64, cpu: UInt64, read: UInt64, write: UInt64, metadata: ProcessMetadata, shortName: String, ioValid: Bool)] = [:]
-    func reset() { gpuAccounting.reset(); aneAccounting.reset(); hardware.reset(); hardwareActive = false; processTime = nil; previous = nil; time = nil; processes.removeAll(keepingCapacity: true) }
+    func reset() { gpuAccounting.reset(); aneAccounting.reset(); hardware.reset(); hardwareActive = false; processTime = nil; previous = nil; time = nil; processes = [:]; interfaceCounters = [:] }
     func read(includeProcesses: Bool = true, includeHardware: Bool? = nil, includeSensorDetails: Bool = true, includeGPU: Bool = false, includeANE: Bool = false) -> Snapshot {
         let now = ProcessInfo.processInfo.systemUptime
         let raw = tg_system()
