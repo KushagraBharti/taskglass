@@ -130,8 +130,8 @@ struct ResourceProcessTable: NSViewRepresentable {
                     if want && !expanded { table.expandItem(slot); reconcileChildren(slot) }
                     else if want && known?.children != slot.childCount { table.reloadItem(slot, reloadChildren: true) }
                 }
-                TableKit.refreshVisible(table) { cell, column, row in
-                    if let slot = table.item(atRow: row) as? Slot { configure(cell, key: column, slot: slot) }
+                TableKit.refreshVisible(table, record: { table.item(atRow: $0) as? Slot }) { cell, column, slot in
+                    configure(cell, key: column, slot: slot)
                 }
             }
             delivered = roots.map { ($0.expandable, $0.childCount) }

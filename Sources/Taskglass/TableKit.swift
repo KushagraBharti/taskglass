@@ -71,15 +71,24 @@ import UniformTypeIdentifiers
     }
 
     /// Reconfigures only the cells already on screen; never rebuilds row views.
-    static func refreshVisible(_ table: NSTableView, configure: (ProcessCell, String, Int) -> Void) {
+    static func refreshVisible<Record>(_ table: NSTableView, onlyColumn: String? = nil,
+                                       record: (Int) -> Record?, configure: (ProcessCell, String, Record) -> Void) {
         let range = table.rows(in: table.visibleRect)
         guard range.location != NSNotFound, range.length > 0 else { return }
         let end = min(table.numberOfRows, range.location + range.length)
         guard range.location < end else { return }
+        let columns = table.tableColumns.enumerated().compactMap { index, column -> (Int, String)? in
+            let key = column.identifier.rawValue
+            return !column.isHidden && (onlyColumn == nil || onlyColumn == key) ? (index, key) : nil
+        }
+        guard !columns.isEmpty else { return }
         for row in range.location..<end {
-            for (index, column) in table.tableColumns.enumerated() where !column.isHidden {
+            // In an outline, resolving an item means consulting AppKit's tree.
+            // Do that once per row rather than once for every visible column.
+            guard let value = record(row) else { continue }
+            for (index, key) in columns {
                 if let cell = table.view(atColumn: index, row: row, makeIfNecessary: false) as? ProcessCell {
-                    configure(cell, column.identifier.rawValue, row)
+                    configure(cell, key, value)
                 }
             }
         }

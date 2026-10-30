@@ -95,3 +95,13 @@ The scoped identity-map/accounting fixture with 2,000 known processes took 0.036
 ## Pass 9: size icon caches for their actual use
 
 List icons now retain 32x32 bitmaps for their 16-point display. The inspector has a separate 16-entry cache of 80x80 images for its 40-point display. The maximum cached pixel payload is about 1.39 MiB instead of 6.25 MiB, excluding the two generic icons and object overhead. This is a capacity calculation, not a measured whole-app footprint claim. A second-chance eviction policy replaces one cold entry instead of clearing all 256 icons at the limit. A targeted native check confirmed cached image identity and both exact retina sizes; release build passed.
+
+## Pass 10: refresh visible table rows once
+
+The shared table updater resolves the visible columns once, then retrieves each row's record once before configuring its cells. Outline refreshes no longer ask AppKit for the same tree item for every column. Account-name completion refreshes only the User column. Release build passed; no app-wide timing claim for this structural reduction.
+
+## Pass 11 investigation
+
+Rejected fetching GPU owner and usage as separate registry properties. Alternating 100 live scans with 86 clients took 0.462 ms for the existing combined properties read and 0.599 ms for separate reads. Replacing sscanf with strtol saved only 0.008 ms and narrowed accepted owner formatting, so retained the existing parser. Neither experiment changed production code.
+
+Investigating whether the already-collected per-core CPU counters can also provide the aggregate CPU reading. Apple's current XNU host.c and processor.c use the same processor_cpu_load_info helper. Check the supported older release implementation and failure/source-transition handling before making this change. Sources: https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/host.c and https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/processor.c . Continuous deadline remains 11:53:30 UTC; six hours have not elapsed.

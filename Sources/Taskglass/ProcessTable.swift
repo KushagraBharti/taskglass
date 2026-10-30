@@ -67,8 +67,8 @@ struct ProcessTable: NSViewRepresentable {
             // holds the maximum. Ascending and non-meter columns show no bars.
             c.maximum = c.ascending ? 0 : c.rows.first.flatMap { c.barValue($0) } ?? 0
             if countChanged { table.noteNumberOfRowsChanged() }
-            TableKit.refreshVisible(table) { cell, key, row in
-                if row < c.rows.count { c.configure(cell, key: key, process: c.rows[row]) }
+            TableKit.refreshVisible(table, record: { c.rows.indices.contains($0) ? c.rows[$0] : nil }) { cell, key, process in
+                c.configure(cell, key: key, process: process)
             }
         }
         c.selected = monitor.selected
@@ -135,8 +135,8 @@ struct ProcessTable: NSViewRepresentable {
         /// An account name arrived from the background lookup: replace the UID in visible User cells only.
         @objc func namesResolved() {
             guard let table, monitor.showUser else { return }
-            TableKit.refreshVisible(table) { cell, key, row in
-                if key == "uid", row < rows.count { configure(cell, key: key, process: rows[row]) }
+            TableKit.refreshVisible(table, onlyColumn: "uid", record: { rows.indices.contains($0) ? rows[$0] : nil }) { cell, key, process in
+                configure(cell, key: key, process: process)
             }
         }
 
