@@ -211,3 +211,7 @@ Each chart now draws its layers in one Canvas rather than separate SwiftUI shape
 ## Pass 32: temporary formatter storage
 
 Formatting writes into a bounded temporary stack buffer, then creates the final string. Small results use inline Swift string storage instead of reserving a 64-byte heap string. Focused time improved 0.103 to 0.075 microseconds. All 180,144 Foundation parity cases matched, including extreme values, rounding boundaries, random bit patterns and process locales. No formatting or precision changes.
+
+## Pass 34: core-history text reuse
+
+Core-history rows cache fixed labels and unchanged numeric strings/sizes. The small cache lives with each native heatmap and rebuilds on prefix/count changes. Full draw including text, geometry and 2x raster improved 1.535 to 1.375 ms with mostly idle cores, and 1.535 to 1.439 with every core changing. Exact pixels matched at 1x/2x, missing/nonfinite values, changed topology and resizing.

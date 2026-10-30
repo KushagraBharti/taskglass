@@ -237,12 +237,22 @@ struct CoreHeatmap: NSViewRepresentable {
         private static func colors(for tint: NSColor) -> [CGColor] {
             (0..<8).map { tint.withAlphaComponent(CoreHeatmap.alpha(level: $0)).cgColor }
         }
-        private let labelAttributes: [NSAttributedString.Key: Any] = [
+        private static let labelAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]
-        private let valueAttributes: [NSAttributedString.Key: Any] = [
+        private static let valueAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.labelColor]
-        private let missingAttributes: [NSAttributedString.Key: Any] = [
+        private static let missingAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.tertiaryLabelColor]
+        // Fixed labels and idle readings keep their measured text between draws.
+        private struct RowText {
+            let label: NSString
+            let labelHeight: CGFloat
+            var reading: Double?
+            var value: NSString = ""
+            var size = NSSize.zero
+        }
+        private var textRows: [RowText] = []
+        private var textPrefix = ""
         override var isFlipped: Bool { true }
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -255,15 +265,25 @@ struct CoreHeatmap: NSViewRepresentable {
             let plotWidth = max(1, bounds.width - labelWidth - valueWidth)
             let geometry = HeatmapGeometry(points: points, indices: indices, window: timeWindow, plotWidth: plotWidth,
                                            labelWidth: labelWidth, rowHeight: rowHeight, rowStep: step)
+            if textRows.count != indices.count || textPrefix != prefix {
+                textPrefix = prefix
+                textRows = indices.indices.map { row in
+                    let label = "\(prefix)\(row + 1)" as NSString
+                    return RowText(label: label, labelHeight: label.size(withAttributes: Self.labelAttributes).height)
+                }
+            }
             for (row, index) in indices.enumerated() {
                 let y = CGFloat(row) * step
-                let label = "\(prefix)\(row + 1)" as NSString
-                label.draw(at: NSPoint(x: 0, y: y + (rowHeight - label.size(withAttributes: labelAttributes).height) / 2), withAttributes: labelAttributes)
                 let current = points.last.flatMap { $0.cores.indices.contains(index) ? $0.cores[index] : nil }
-                let value = percent(current) as NSString
-                let attributes = current == nil ? missingAttributes : valueAttributes
-                let size = value.size(withAttributes: attributes)
-                value.draw(at: NSPoint(x: bounds.width - size.width, y: y + (rowHeight - size.height) / 2), withAttributes: attributes)
+                let attributes = current == nil ? Self.missingAttributes : Self.valueAttributes
+                if textRows[row].value.length == 0 || textRows[row].reading != current {
+                    textRows[row].reading = current
+                    textRows[row].value = percent(current) as NSString
+                    textRows[row].size = textRows[row].value.size(withAttributes: attributes)
+                }
+                let text = textRows[row]
+                text.label.draw(at: NSPoint(x: 0, y: y + (rowHeight - text.labelHeight) / 2), withAttributes: Self.labelAttributes)
+                text.value.draw(at: NSPoint(x: bounds.width - text.size.width, y: y + (rowHeight - text.size.height) / 2), withAttributes: attributes)
             }
             guard let context = NSGraphicsContext.current?.cgContext else { return }
             context.saveGState()
