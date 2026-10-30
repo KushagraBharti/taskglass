@@ -1,0 +1,8 @@
+{
+  "duration_seconds": 30.11,
+  "cpu_percent_one_core": 0.109,
+  "footprint_mib_median": 168.95,
+  "footprint_mib_peak": 185.53,
+  "rss_mib_median": 164.42,
+  "interrupt_wakeups_per_second": 3.49
+}
