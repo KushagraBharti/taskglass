@@ -1,0 +1,21 @@
+{
+  "label": "final-ui-mixed-exposure-unknown",
+  "duration_seconds": 60.24,
+  "cpu_timebase_numer": 125,
+  "cpu_timebase_denom": 3,
+  "cpu_percent_one_core": 6.763,
+  "footprint_mib_median": 69.84,
+  "footprint_mib_peak": 279.58,
+  "footprint_mib_first": 69.5,
+  "footprint_mib_last": 279.56,
+  "rss_mib_median": 145.25,
+  "interrupt_wakeups_per_second": 3.24,
+  "window_seconds": {
+    "exposed": 0.0,
+    "covered": 0.0,
+    "unknown": 60.24
+  },
+  "sample_events": 0,
+  "observed_panes": [],
+  "method_note": "Includes UI automation and navigation. Window exposure attribution invalid because Python monotonic epoch differed from systemUptime. Not an idle or visible-only benchmark."
+}

@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a crash, incorrect measurement or usability issue.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Taskglass version
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Mac model / chip and macOS version
+      placeholder: MacBook Pro, M5 Pro, macOS 27.0.1
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the expected result and steps to reproduce. Review screenshots/logs for private process names or paths before sharing.
+    validations:
+      required: true
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Measurement comparison, if relevant
+      description: State the source, refresh interval and whether the window was visible. Some private hardware counters are unsupported on some Macs.

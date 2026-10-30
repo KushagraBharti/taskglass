@@ -1,0 +1,24 @@
+Taskglass - Apple silicon unsigned preview
+
+Requires an M-series Mac with macOS 14 Sonoma or newer.
+
+1. Drag Taskglass.app into Applications, then eject this disk image.
+2. Open Taskglass from Applications.
+3. This free preview has no Apple Developer ID signature or notarization.
+   If macOS blocks it, open System Settings > Privacy & Security, find
+   Taskglass, and choose Open Anyway. Confirm the next Open prompt.
+   Only approve the download if you trust its source.
+
+Download only from https://github.com/KushagraBharti/taskglass/releases
+The release provides SHA-256 checksums and GitHub build provenance.
+Do not disable Gatekeeper or run a quarantine-removal script.
+
+The app needs no administrator helper, login item, account or subscription.
+Some hardware counters are unavailable on certain models/OS versions.
+Experimental Neural Engine power is not a utilization percentage.
+
+To uninstall: quit Taskglass and move the app to Trash.
+Optional preferences reset:
+  defaults delete dev.taskglass.app
+
+Source and MIT license: https://github.com/KushagraBharti/taskglass

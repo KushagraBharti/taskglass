@@ -1,46 +1,57 @@
 # Development notes
 
-## Local environment
+## Toolchain and scope
 
-Built on macOS 27.0.1, Apple Silicon, with Apple Swift 6.4 and the command line macOS SDK. Minimum deployment target is macOS 26. No software was installed for this project. Build scripts use existing `swift`, `clang`, and `xcrun`; measurement uses Python's standard library.
+Taskglass targets macOS 14+ on ARM64 with Swift 6.2 or newer. Development used macOS 27.0.1, Swift 6.4 and Command Line Tools on an M5 Pro. No software was installed for this project. Swift/Clang, iconutil, codesign, ditto and hdiutil are Apple tools already on the build machine. Optional measurement scripts use Python's standard library.
 
-## Performance decisions
+The app has no package dependencies, web view, privileged helper, daemon, login item or updater service. It does not collect analytics or make monitoring network requests. Help-menu links open the user's browser only when clicked.
 
-- Direct Mach and libproc calls replace a child `ps` process on every sample.
-- A sampler actor performs collection off the main thread and retains only the previous counters. Executable names and paths are cached until a PID's start identity changes.
-- A bounded 90-point graph uses simple vector paths rather than a full chart framework or Canvas drawing context.
-- AppKit's NSTableView creates reusable cells for visible rows. SwiftUI does not construct hundreds of process row hierarchies.
-- Sorting and filtering happen once per snapshot or user change, rather than in every body evaluation. The Apps filter obtains running application IDs once per arrangement.
-- Manual pause and hidden/minimized state cancel the sampling task and its periodic wakeups. Resume resets counters before calculating rates.
-- The interface uses system typography and materials. There are no continuous animations, external fonts, image downloads, or web views.
-- A hostname lookup unexpectedly triggered synchronous name resolution during UI inspection. It was removed; the app uses “This Mac.”
+## Performance choices
 
-## Next work
+- Direct Mach, libproc and IOKit calls avoid launching monitoring subprocesses.
+- A sampler actor collects off the main thread. Paths and app identities are cached until PID/start identity changes. Directory account-name lookups use a bounded utility queue.
+- Histories retain at most 601 system points and 181 selected-process points. Icon/account caches are bounded. Cached process icons are rendered at 80×80 pixels, enough for the 40 pt inspector at 2x, rather than retaining every source representation. No monitoring history is written to disk.
+- Vector paths and a small AppKit core map replace a charting runtime. There is no continuous animation, Canvas, drawingGroup or external font.
+- Native tables reuse visible cells. Resource outlines use positional slots, with expansion and selection following content identity across re-ranking. Full reloads are reserved for initial display and grouping changes.
+- Group aggregates are calculated once; helpers use their outer app bundle. Overview selects five leaders without sorting a second full array. Resource views sort their shared unsorted source once.
+- Overview and non-CPU/memory/storage resource contexts collect process data every third tick. Process deltas have their own elapsed clock.
+- CPU/GPU temperature summaries, fans, battery and capacity refresh every 10 seconds. Full IOHID sensor polling runs on the Temperatures page or as an SMC fallback. Handles and sensor metadata are reused.
+- CLPC setup constructs only three recognized descriptors instead of enumerating the entire IOReport legend.
+- Covered windows keep bounded history without publishing invisible UI updates. Pause, hide and minimize cancel periodic sampling. Resume/wake reset rate baselines.
+- Release builds use the explicit native SwiftPM engine and safe `-Osize` optimization, strip distribution-only symbols, and retain the unstripped build in `.build`. There is no `-Ounchecked`.
 
-- App grouping with aggregate child-process accounting and a tree view. Process identity must remain correct across exit and PID reuse.
-- Disk capacity and per-volume throughput, battery details, and richer per-interface networking.
-- User-configurable columns, persistent window preferences, and process-specific history with a strict memory bound.
-- Broader tests under process churn, interface changes, sleep/wake, memory pressure, and multiple macOS versions.
-- VoiceOver, increased contrast, reduced transparency, light appearance, and keyboard-only review.
-- App icon, license, contribution guidelines, signed releases and notarization.
+See [measurements](measurements/README.md) for measured costs and limitations. Sampler timings exclude UI work and are not whole-app CPU claims.
 
-These are follow-up items, not advertised capabilities. GPU or sensor collection should be added only with documented permissions, measurement semantics, and measured overhead.
+## Accuracy and safety
 
-## Repository hygiene
+Process CPU Mach ticks are converted using mach_timebase_info before elapsed-time deltas. A real busy single-thread fixture must measure 30–130%; 100% represents one core. System CPU is normalized across logical cores and handles 32-bit tick wraps.
 
-The project has its own Git repository inside `taskglass/`. No files from the parent workspace belong to it. Generated screenshots and build output are ignored. Timing reports in `measurements/` contain only aggregate resource numbers and can be committed. Nothing has been pushed to GitHub.
+Process quit actions require a current record, the same PID/start identity, and the current user's ownership. Root, PID 1 and Taskglass itself are excluded. No privilege escalation is attempted.
 
-## Native utility refinement
+SMC is read only. Optional SMC/IOReport ABI handling and CLPC descriptors reference MIT-licensed macmon; revision and license are in [third-party notices](THIRD_PARTY_NOTICES.md). No macmon or powermetrics executable is invoked. Power is experimental and is not ANE utilization or wall power. Unsupported values leave graph gaps.
 
-The second design pass removes the dashboard sidebar and tinted metric cards. Navigation, filtering, search, pause, and the optional inspector use native macOS controls. The primary process view keeps a compact CPU/memory/network summary beneath the table. Extra resource columns are optional. Performance uses a single system accent color, plain section grouping and aligned data instead of card backgrounds.
+The six-second Metal workload is a development fixture only. It validates GPU response on the development machine. The ANE channel has not been validated with a controlled Core ML workload. Additional physical M-series/OS coverage, deeper process trees, per-device storage, media engines and per-process GPU/ANE/network attribution remain future work.
 
-Design references:
+## Design and verification
 
-- [Apple materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials), which distinguishes the controls/navigation layer from content.
-- [Build an AppKit app with the new design](https://developer.apple.com/videos/play/wwdc2025/310/), particularly native toolbar behavior.
+The requested Claude Opus 5.5 passes used the existing Claude CLI and frontend-design guidance. They refined shared components, navigation, plots, native process tables and the inspector. Reviews in `docs/` distinguish source review from live UI verification. Raw prompts/tool output stay ignored in `.build`. No new design package was installed.
 
-Table updates now write changed text into existing visible cells instead of reloading row views. Process enumeration uses a smaller C record and reserves the next counter dictionary before filling it. The Performance view avoids process enumeration entirely. Sampling restarts immediately when the selected view or refresh interval changes. UI, monitoring, sampling, table integration and graph drawing are in separate source files.
+The final native-engine pass visited all resource pages, checked full grouped browsing and search, process trends and self-quit protection, and verified reopening after close. It also fixed paused navigation to use the retained process sample rather than a system-only snapshot. A regression test covers that case.
 
-For appearance QA, launch the app with `open dist/Taskglass.app --args --preview-light`. This sets only the running app's appearance and does not change macOS settings. Relaunch without the argument to follow the system appearance again. The resource strip omits its mini graphs when the content pane narrows for the inspector.
+The first preview is intentionally dark. Native toolbar/sidebar controls follow macOS. Full VoiceOver and all accessibility preference combinations still need broader user testing; tooltips, keyboard actions and accessibility labels are included.
 
-The Mach sampler reuses one host send right initialized with `pthread_once`. Build packaging replaces the executable atomically, so rebuilding does not truncate the executable used by a running app.
+## Distribution
+
+`VERSION` drives the bundle and archive names. `scripts/build-app.sh` makes the app; `package-release.sh` makes ZIP/DMG/checksums; `validate-release.sh` verifies architecture, minimum OS, licenses, signatures, mounted DMG and extracted ZIP contents. The public release workflow runs tests and packaging, attests its artifacts, and publishes an unsigned prerelease from a matching version tag. CI uses standard public ARM64 runners.
+
+The free preview is ad-hoc signed for integrity, without Apple Developer ID or notarization. Users follow normal Gatekeeper approval. No security-disabling installer or quarantine-removal command is supplied.
+
+For diagnostics only, launch with `--profile-events` and redirect stderr under `.build`. Events contain uptime, pane and exposure state, not readings or process names. `scripts/measure.py --events PATH` records the window exposure during a run so covered and visible measurements are not confused.
+
+## Hygiene
+
+`.build/`, `dist/`, local screenshots and Python bytecode are ignored. Only reviewed aggregate measurements and a reviewed overview screenshot with generic process names and no executable paths are published. View settings use normal macOS preferences in `dev.taskglass.app`; tests use memory-only preferences. `rm -rf .build dist` removes generated project output. macOS manages its own launch/driver/compiler caches and diagnostics.
+
+## Build-engine verification
+
+On the development Swift 6.4 Command Line Tools, the default swiftbuild engine compiled with SDK 27 but recorded SDK 14 in LC_BUILD_VERSION. An identical native-engine build recorded minimum OS 14 and SDK 27 correctly. The build script selects `--build-system native` for the preview. Swift 6.4 warns that this engine is deprecated, so this workaround needs revisiting when the upstream engine is corrected or native support is removed. CI uses Swift toolchains supplied by its standard macOS runners.

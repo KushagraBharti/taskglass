@@ -1,0 +1,12 @@
+{
+  "duration_seconds": 45.15,
+  "cpu_timebase_numer": 125,
+  "cpu_timebase_denom": 3,
+  "cpu_percent_one_core": 4.244,
+  "footprint_mib_median": 98.83,
+  "footprint_mib_peak": 100.13,
+  "footprint_mib_first": 82.14,
+  "footprint_mib_last": 99.08,
+  "rss_mib_median": 190.42,
+  "interrupt_wakeups_per_second": 2.53
+}

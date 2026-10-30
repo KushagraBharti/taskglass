@@ -1,10 +1,12 @@
 {
   "duration_seconds": 15.05,
-  "cpu_percent_one_core": 0.001,
   "footprint_mib_median": 82.53,
   "footprint_mib_peak": 82.58,
   "footprint_mib_first": 82.58,
   "footprint_mib_last": 82.53,
   "rss_mib_median": 182.22,
-  "interrupt_wakeups_per_second": 0.86
+  "interrupt_wakeups_per_second": 0.86,
+  "cpu_percent_one_core_unconverted": 0.001,
+  "cpu_measurement_valid": false,
+  "cpu_measurement_note": "Historical result omitted the Mach timebase conversion. CPU percentage is invalid; memory and wakeup values are unaffected."
 }

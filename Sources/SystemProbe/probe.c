@@ -2,6 +2,7 @@
 #include <libproc.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
+#include <mach/mach_time.h>
 #include <sys/sysctl.h>
 #include <sys/resource.h>
 #include <stdlib.h>
@@ -63,6 +64,12 @@ TGSystem tg_system(void) {
      struct sockaddr_dl *address=(struct sockaddr_dl *)(m+1);
      if(address->sdl_nlen>=2 && address->sdl_data[0]=='e' && address->sdl_data[1]=='n' && (m->ifm_flags&IFF_UP)) {
       s.net_identity ^= (uint64_t)m->ifm_index*2654435761ULL;
+      if(s.interface_count<16) {
+       TGInterface *iface=&s.interfaces[s.interface_count++];
+       size_t size=address->sdl_nlen<15?address->sdl_nlen:15;
+       memcpy(iface->name,address->sdl_data,size);iface->name[size]=0;
+       iface->received=m->ifm_data.ifi_ibytes;iface->sent=m->ifm_data.ifi_obytes;
+      }
       s.received+=m->ifm_data.ifi_ibytes; s.sent+=m->ifm_data.ifi_obytes;
      }
     }
@@ -72,7 +79,14 @@ TGSystem tg_system(void) {
  }
  return s;
 }
+// proc_taskinfo CPU time is Mach absolute time on Apple silicon.
+// Convert once at the boundary; Swift receives nanoseconds. Use 128-bit arithmetic
+// so long-lived processes cannot overflow during multiplication.
+static mach_timebase_info_data_t tg_timebase;
+static pthread_once_t tg_time_once = PTHREAD_ONCE_INIT;
+static void tg_init_time(void) { mach_timebase_info(&tg_timebase); }
 int tg_processes(TGProcess **output) {
+ pthread_once(&tg_time_once, tg_init_time);
  int bytes=proc_listpids(PROC_ALL_PIDS,0,NULL,0);
  if(bytes<=0) { *output=NULL; return 0; }
  int capacity=bytes+4096; pid_t *pids=malloc(capacity);
@@ -87,7 +101,7 @@ int tg_processes(TGProcess **output) {
   if(proc_pidinfo(pids[i],PROC_PIDTASKALLINFO,0,&info,sizeof(info))!=sizeof(info)) continue;
   TGProcess *r=&rows[used++]; r->pid=pids[i];r->parent=info.pbsd.pbi_ppid;r->uid=info.pbsd.pbi_uid;
   r->birth=info.pbsd.pbi_start_tvsec*1000000+info.pbsd.pbi_start_tvusec;
-  r->cpu=info.ptinfo.pti_total_user+info.ptinfo.pti_total_system;
+  r->cpu=(uint64_t)(((__uint128_t)info.ptinfo.pti_total_user+info.ptinfo.pti_total_system)*tg_timebase.numer/tg_timebase.denom);
   r->resident=info.ptinfo.pti_resident_size; r->threads=info.ptinfo.pti_threadnum;
   strlcpy(r->name,info.pbsd.pbi_name[0]?info.pbsd.pbi_name:info.pbsd.pbi_comm,sizeof(r->name));
   struct rusage_info_v2 usage={0};

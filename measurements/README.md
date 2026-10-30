@@ -1,32 +1,56 @@
-# Local resource measurements
+# Resource measurements
 
-Measured on the development Mac with a release build, macOS 27.0.1, 18 logical cores and 48 GB of physical memory. The process list contained approximately 690 accessible processes. The default refresh interval was two seconds. These are short development measurements, not a guarantee for other Macs or workloads.
+Development machine: Apple M5 Pro, macOS27.0.1, 18 CPU cores, 20 GPU cores, 48 GiB unified memory, roughly700 accessible processes. Release build, default2-second refresh. These are short local measurements, not guarantees or a claim of being the lightest monitor.
 
-| Run | Duration | CPU, one core | Median physical footprint | Peak physical footprint |
-| --- | ---: | ---: | ---: | ---: |
-| Initial full UI, Canvas graphs | 30 s | 0.109% | 168.95 MiB | 185.53 MiB |
-| Visible row updates, Canvas graphs | 45 s | 0.060% | 153.12 MiB | 160.84 MiB |
-| Visible row updates, vector graphs | 30 s | 0.061% | 70.75 MiB | 74.33 MiB |
-| Paused, before vector change | 15 s | 0.001% | 86.61 MiB | 89.00 MiB |
+## CPU clock correction
 
-The final vector graph run recorded 148.05 MiB median resident memory and 4.87 interrupt wakeups per second. Physical footprint and resident memory have different definitions. Reporting only one would hide part of the cost. The runs used fresh launches and different timings, and were not a controlled repeated experiment. The measurements suggest the graph change helped, but longer repeated runs are still needed.
+Earlier profiler results treated Mach CPU ticks as nanoseconds. That understated CPU usage on this machine by125/3. Those JSON files now explicitly mark CPU as invalid and retain it only as `cpu_percent_one_core_unconverted`; historical memory and wakeup fields are unaffected. Earlier UI comparisons cannot establish the final app's CPU cost.
 
-The latest direct sampler test averaged 1.38 ms per read over 50 reads. It reads the process list, system and per-core CPU counters, memory, swap, pressure, and network counters. It does not time UI work.
+The app's process CPU boundary and scripts/measure.py now apply mach_timebase_info. A real busy single-thread fixture measured about99.9% after the fix. The test requires30–130%, so the previous2.4% result cannot pass unnoticed.
 
-The JSON files are raw output from `scripts/measure.py`. The final comparison covers the process view while visible and idle. Interaction, filtering, the Performance view, accessibility inspection, or changing the window size can increase costs. No claim of being the smallest possible macOS monitor has been verified.
+## Graphical monitor, before the latest refinement
 
-A `leaks` diagnostic on an earlier build reported small framework/XPC cycles, but restricted process access prevented a complete analysis. It does not establish that the app is leak-free. Diagnostic files stay in the ignored build folder.
+| Run | Duration | CPU, one core | Median physical footprint | Peak footprint | Median RSS | Interrupt wakeups/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rich UI with navigation/interaction during run | 60s | 9.712% | 79.24MiB | 182.22MiB | 139.92MiB | 71.74 |
+| Full native grouped process table, quiet after launch | 45s | 4.244% | 98.83MiB | 100.13MiB | 190.42MiB | 2.53 |
 
-## Native utility refinement
+The second run began with Memory selected and included no agent UI actions during collection. User interaction and external workload were not controlled. Footprint rose from82.14 to99.08MiB during warm-up; this short run does not establish a long-term plateau. The mixed run is not an idle baseline. Physical footprint and RSS are different memory-accounting measures; both are reported.
 
-A further pass removes the persistent dashboard sidebar, uses native toolbar navigation and Cocoa search, and updates existing visible table cells in place. Primary columns are visible by default; secondary columns are optional. The C process record is smaller, its next-counter dictionary reserves capacity, and Performance mode reads only system counters.
+These numbers precede the latest backend optimizations and Claude's thorough UI refinement. The release candidates below are recorded separately rather than reusing older results as claims about newer code.
 
-| Mode | Duration | CPU, one core | Median footprint | Median RSS |
-| --- | ---: | ---: | ---: | ---: |
-| Processes, fresh launch | 90 s | 0.052% | 50.41 MiB | 118.80 MiB |
-| Performance, after UI interaction | 30 s | 0.038% | 84.69 MiB | 181.92 MiB |
-| Paused, after UI interaction | 15 s | 0.001% | 82.53 MiB | 182.22 MiB |
+## Backend work
 
-The 90-second process run started at 50.39 MiB physical footprint and ended at 50.86 MiB, with a 53.47 MiB peak. It included approximately 700 accessible processes, two-second sampling, and the existing window size restored by macOS. The Performance and paused runs followed accessibility inspection, searching, opening the inspector and toggling columns in the same app session. Their memory numbers include those warm caches, so they do not isolate the cost of a view. No repeatability or universal minimum claim is made. JSON files are retained beside this report.
+A grouping benchmark over100 builds with roughly700 live records fell from2.533ms to1.347ms after caching app identities, storing group totals once and avoiding single-member sorts. The warm combined process/hardware sampler is about2.7–3.0ms per read; this excludes UI work and is not a whole-app CPU measurement.
 
-The test runner now also checks consistent ordering for tied values and case variants, and verifies that returning from system-only mode creates a fresh process CPU baseline. The full process sampler averaged 1.35–2.07 ms per read across the final test runs, with approximately 700 accessible processes.
+The IOReport startup comparison runs three separate native-probe processes per variant. One variant first enumerates every system channel; the other builds only the three recognized CLPC descriptors. Raw runs and method are in probe-init-comparison.json. This excludes the app UI, and OS caches/workloads are not controlled.
+
+No history or individual process names are saved in committed profiling data. Raw UI sampling diagnostics and screenshot files stay under ignored paths. Build output and compiler caches remain inside the project.
+
+The current native probe benchmark (`./scripts/measure-probe.sh`) records summary startup, fast reads, summary metadata reads and full raw sensor reads separately in native-probe-summary-timing.json. It excludes UI and process enumeration. Comparing its paths does not prove an equivalent whole-app speedup.
+
+## Release candidates
+
+All CPU values below use the corrected Mach timebase and represent one core. Exposure is captured by opt-in local event diagnostics. User activity, other workloads and OS caches are uncontrolled. Short runs do not establish long-term memory behavior.
+
+| Run | Exposure | CPU, one core | Median physical footprint | Peak footprint |
+| --- | --- | ---: | ---: | ---: |
+| Final UI interaction, 90 s | 54.71 s exposed, 35.60 s covered; CPU/GPU/Overview navigation | 4.121% | 214.28 MiB | 331.70 MiB |
+| CPU page, 60 s | 60.24 s exposed | 7.831% | 219.69 MiB | 244.41 MiB |
+| Fresh Overview, 90 s | 6.36 s exposed, 83.97 s covered | 0.582% | 65.16 MiB | 172.45 MiB |
+
+The mixed run precedes bounded process-icon thumbnails. The CPU and fresh Overview runs include that change. These three runs precede the Swift 6.4 build-engine SDK-metadata correction, and are not the final release binary. The initial 60 s mixed run has unknown exposure because Python's monotonic epoch differed from Foundation systemUptime; its JSON states that limitation. The profiler now uses CLOCK_UPTIME_RAW for matching event timestamps.
+
+A covered window continues sampling but defers SwiftUI publication. Its low CPU cannot be presented as visible-window performance. UI automation, especially accessibility traversal and screenshots, can inflate transient memory. Visible CPU-page usage remains a cost to improve, not evidence of a universally lightest app.
+
+## Distribution size
+
+The local native-engine release executable is 949,136 bytes after stripping, compared with 2,657,432 bytes for the same unstripped executable. The app bundle occupies about 1.26 MiB including its 355 KB ICNS and licenses. Local ZIP is about 721 KiB and DMG about 1.1 MB. CI toolchain/container differences can change exact release sizes; published assets are the authority.
+
+Stripping changes download/disk size, not a proven runtime speedup. Swift uses safe -Osize optimization; sampler and lifecycle suites also compile with -Osize. No unchecked optimization is enabled. Each cached process icon is limited to 80×80 pixels; 256 entries bound retained icon pixel data to about 6.3 MiB, excluding AppKit's own caches.
+
+## Native-engine candidate
+
+`release-native-overview-60s.json` records the native-engine candidate before the paused-navigation fix. It was covered for the entire 60.23 s: 0.558% of one CPU core, 86.08 MiB median physical footprint and 86.42 MiB peak. It recorded 30 samples. This is covered-window behavior, not a visible dashboard benchmark. The subsequent fix changes retained process browsing/counts, not the Overview collection cadence.
+
+The final `-Osize` regression run passed with a 99.87% busy-thread fixture, 2.47 ms direct sampler average over 50 reads with 718 accessible processes, 1.403 ms grouping average over 100 builds, and 3.04 ms combined warm hardware/process reads. These timings exclude UI work. Lifecycle checks include paused process browsing as well as covered publication, exposure, wake-baseline reset and cancellation.

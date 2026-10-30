@@ -1,0 +1,23 @@
+{
+  "label": "release-native-overview",
+  "duration_seconds": 60.23,
+  "cpu_timebase_numer": 125,
+  "cpu_timebase_denom": 3,
+  "cpu_percent_one_core": 0.558,
+  "footprint_mib_median": 86.08,
+  "footprint_mib_peak": 86.42,
+  "footprint_mib_first": 86.42,
+  "footprint_mib_last": 86.11,
+  "rss_mib_median": 164.05,
+  "interrupt_wakeups_per_second": 4.25,
+  "window_seconds": {
+    "exposed": 0.0,
+    "covered": 60.23,
+    "unknown": 0.0
+  },
+  "sample_events": 30,
+  "observed_panes": [
+    "overview"
+  ],
+  "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+}

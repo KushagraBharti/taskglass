@@ -1,20 +1,26 @@
 import AppKit
 let output = CommandLine.arguments[1]
+guard let logo = NSImage(contentsOfFile: "Assets/Branding/taskglass-logo.png") else {
+    fatalError("Missing project logo")
+}
 for size in [16, 32, 64, 128, 256, 512, 1024] {
-    let image = NSImage(size: NSSize(width: size, height: size))
-    image.lockFocus()
+    // Render exact pixel dimensions. NSImage.lockFocus follows the display's
+    // backing scale and was silently generating every icon at twice its size.
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size,
+        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+        colorSpaceName: .deviceRGB, bytesPerRow: size * 4, bitsPerPixel: 32)!
+    let context = NSGraphicsContext(bitmapImageRep: rep)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
     let scale = CGFloat(size) / 1024
     let transform = NSAffineTransform(); transform.scale(by: scale); transform.concat()
     let rect = NSRect(x: 48, y: 48, width: 928, height: 928)
     let shape = NSBezierPath(roundedRect: rect, xRadius: 212, yRadius: 212)
-    NSGradient(starting: NSColor(red: 0.11, green: 0.29, blue: 0.4, alpha: 1), ending: NSColor(red: 0.06, green: 0.11, blue: 0.2, alpha: 1))!.draw(in: shape, angle: -65)
-    NSColor.white.withAlphaComponent(0.22).setStroke(); shape.lineWidth = 4; shape.stroke()
-    let line = NSBezierPath(); line.move(to: NSPoint(x: 208, y: 488))
-    for (x,y) in [(355,488),(420,660),(505,310),(591,588),(655,488),(816,488)] { line.line(to: NSPoint(x: x, y: y)) }
-    line.lineWidth = 44; line.lineCapStyle = .round; line.lineJoinStyle = .round
-    NSColor(red: 0.35, green: 0.91, blue: 0.95, alpha: 1).setStroke(); line.stroke()
-    image.unlockFocus()
-    let rep = NSBitmapImageRep(data: image.tiffRepresentation!)!
+    NSColor(calibratedWhite: 0.055, alpha: 1).setFill(); shape.fill()
+    NSColor.white.withAlphaComponent(0.12).setStroke(); shape.lineWidth = 2; shape.stroke()
+    logo.draw(in: NSRect(x: 176, y: 176, width: 672, height: 672),
+              from: .zero, operation: .sourceOver, fraction: 1)
+    NSGraphicsContext.restoreGraphicsState()
     let data = rep.representation(using: .png, properties: [:])!
     let names: [String]
     switch size {

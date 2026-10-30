@@ -4,3 +4,6 @@ dist/
 .swiftpm/
 
 screenshot*.png
+
+__pycache__/
+*.pyc

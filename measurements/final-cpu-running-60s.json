@@ -1,0 +1,23 @@
+{
+  "label": "final-cpu-running",
+  "duration_seconds": 60.24,
+  "cpu_timebase_numer": 125,
+  "cpu_timebase_denom": 3,
+  "cpu_percent_one_core": 7.831,
+  "footprint_mib_median": 219.69,
+  "footprint_mib_peak": 244.41,
+  "footprint_mib_first": 244.41,
+  "footprint_mib_last": 236.64,
+  "rss_mib_median": 243.25,
+  "interrupt_wakeups_per_second": 2.42,
+  "window_seconds": {
+    "exposed": 60.24,
+    "covered": 0.0,
+    "unknown": 0.0
+  },
+  "sample_events": 30,
+  "observed_panes": [
+    "cpu"
+  ],
+  "method_note": "Release app with opt-in event diagnostics; window exposure is recorded, external workload is uncontrolled."
+}

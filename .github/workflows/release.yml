@@ -1,0 +1,37 @@
+name: Release unsigned preview
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify tag matches source version
+        run: test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+      - name: Native sampler and lifecycle tests
+        run: ./scripts/test.sh
+      - name: Build
+        run: ./scripts/build-app.sh
+      - name: Hardware availability
+        run: ./scripts/check-hardware.sh
+      - name: Package
+        run: ./scripts/package-release.sh
+      - name: Validate archives and integrity
+        run: ./scripts/validate-release.sh
+      - name: Attest release files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/release/*
+      - name: Publish unsigned preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/release/* --verify-tag --prerelease --title "Taskglass $GITHUB_REF_NAME · unsigned preview" --notes-file "docs/releases/$GITHUB_REF_NAME.md"
