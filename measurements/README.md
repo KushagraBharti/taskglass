@@ -17,7 +17,7 @@ These are single short runs, not repeated controlled trials or long-term memory 
 
 ## Size and retained data
 
-The local v0.1.2 stripped executable is 928,832 bytes, about 7% smaller than the same-SDK baseline's 999,648 bytes. The app bundle is 1,292,325 bytes, ZIP 779,458 bytes, and DMG 1,194,011 bytes. Published artifact sizes can differ with the CI toolchain. Smaller files do not by themselves prove lower running memory.
+The local v0.1.2 stripped executable is 928,816 bytes, about 7% smaller than the same-SDK baseline's 999,648 bytes. The app bundle is 1,292,309 bytes, ZIP 779,308 bytes, and DMG 1,193,267 bytes. Published artifact sizes can differ with the CI toolchain. Smaller files do not by themselves prove lower running memory.
 
 List icons are capped at 256 × 32 × 32 pixels and inspector icons at 16 × 80 × 80 pixels. Their combined pixel budget is about 1.4 MiB, down from the previous 6.3 MiB bound, excluding AppKit's own caches. System history retains at most 601 samples; selected-process history retains at most 181. There is no monitoring daemon or third-party runtime.
 
