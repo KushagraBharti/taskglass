@@ -65,3 +65,9 @@ Offscreen NSHostingView update/layout/bitmap comparison at 2x: two-layer 31-poin
 Core heatmaps calculate each sample's x/width once for all cores and batch rectangles into the eight load paths. A direct per-rectangle Core Graphics rewrite was slower and rejected. Batched geometry for 18 cores improved 31-point construction 0.018 to 0.016 ms, 181 points 0.082 to 0.066, 601 points 0.143 to 0.105. The heatmap raster is pixel-identical across all three history windows, gaps, missing cores and nonfinite values. Label font/attribute dictionaries are retained per heatmap view instead of recreated every draw. Full release build passed.
 
 Continuous work is still underway. Next candidate: stop copying full process records into every grouped list; store ordered indices into the shared sample while preserving aggregation and selection.
+
+## Pass 4: shared group membership
+
+Process families now hold ordered indices into the shared sample. Single-process rows use a range and allocate no member array. Groups sort integers rather than full ProcessRow records. Family structs grow from 160 to 176 bytes, but each member index uses 8 bytes instead of another 168-byte record. Family equality compares only selected members; aggregation still follows the original sorted order, and coalition fallback titles preserve their original source-order choice.
+
+Frozen 2,000-process comparison against the previous implementation: CPU grouping 1.028 to 0.921 ms, memory 1.636 to 1.422, GPU 0.898 to 0.759, ANE 1.141 to 0.955, disk 1.467 to 1.210. Grouped and ungrouped outputs compare equal for all columns. Existing sampling/accounting/lifecycle checks and the release build passed. Live sampling timings varied with system load, so those are not used as before/after claims.

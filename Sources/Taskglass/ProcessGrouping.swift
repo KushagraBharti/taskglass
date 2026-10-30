@@ -3,7 +3,7 @@ import Foundation
 struct ProcessFamily: Equatable {
     let id: String
     let name: String
-    let members: [ProcessRow]
+    let members: ProcessMembers
     let application: Bool
 
     var iconPath: String? {
@@ -21,6 +21,9 @@ struct ProcessFamily: Equatable {
     let write: Double?
 
     init(id: String, name: String, members: [ProcessRow], application: Bool) {
+        self.init(id: id, name: name, members: ProcessMembers(members), application: application)
+    }
+    init(id: String, name: String, members: ProcessMembers, application: Bool) {
         self.id = id; self.name = name; self.members = members; self.application = application
         var gpu: Double?, neuralMemory: UInt64?, ane: Double?
         var groups = Set<UInt64>()
@@ -62,10 +65,10 @@ struct ProcessFamily: Equatable {
 func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [ProcessFamily] {
     struct Bucket {
         var name: String
-        var members: [ProcessRow] = []
-        mutating func append(_ row: ProcessRow, name: String) {
+        var members: [Int] = []
+        mutating func append(_ index: Int, name: String) {
             self.name = name
-            members.append(row)
+            members.append(index)
         }
     }
     var buckets: [String: Bucket] = [:]
@@ -87,7 +90,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         }
         // Mutate through the dictionary's modify accessor, without copying a
         // growing member array or maintaining separate title/application maps.
-        buckets[id, default: Bucket(name: name)].append(row, name: name)
+        buckets[id, default: Bucket(name: name)].append(index, name: name)
     }
     // Reserve the actual output size: ANE grouping can reduce hundreds of
     // processes to a few groups, so row-count capacity would stay mostly unused.
@@ -95,19 +98,21 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
     families.reserveCapacity(individuals.count + buckets.count)
     for index in individuals {
         let row = rows[index]
-        families.append(ProcessFamily(id: "pid:\(row.id):\(row.birth)", name: row.name, members: [row], application: false))
+        families.append(ProcessFamily(id: "pid:\(row.id):\(row.birth)", name: row.name, members: ProcessMembers(source: rows, index: index), application: false))
     }
     for (id, bucket) in buckets {
-        let children = bucket.members
+        var order = bucket.members
+        if order.count > 1 { order.sort { processPrecedes(rows[$0], rows[$1], key: key, ascending: false) } }
+        let children = ProcessMembers(source: rows, order: order)
         var title = bucket.name
         if byANE && id.hasPrefix("coalition:") {
             var apps = Set<String>()
             for row in children {
                 if let name = row.application?.name { apps.insert(name) }
             }
-            title = apps.count == 1 ? apps.first! : apps.count > 1 ? "Shared: " + apps.sorted().joined(separator: ", ") : children.first!.name + " · " + title
+            title = apps.count == 1 ? apps.first! : apps.count > 1 ? "Shared: " + apps.sorted().joined(separator: ", ") : rows[bucket.members.first!].name + " · " + title
         }
-        families.append(ProcessFamily(id: id, name: title, members: children.count > 1 ? children.sorted { processPrecedes($0, $1, key: key, ascending: false) } : children, application: true))
+        families.append(ProcessFamily(id: id, name: title, members: children, application: true))
     }
     families.sort {
         let a = $0.value(key) ?? -1, b = $1.value(key) ?? -1
