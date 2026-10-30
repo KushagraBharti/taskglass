@@ -219,3 +219,7 @@ Core-history rows cache fixed labels and unchanged numeric strings/sizes. The sm
 ## Pass 33: reserve Neural Engine result capacity
 
 ANE rate construction reserves capacity from the known group count before inserting readable rates. The 30-group fixture improved 1.65 to 0.70 microseconds, 100 groups 5.44 to 2.16, and 500 groups 24.78 to 11.30. Counter, timing and reset logic is unchanged. The GPU dictionary-filter replacement showed no meaningful gain at ordinary client counts and was rejected. The initial GPU comparison used exact floating-point sums despite dictionary iteration order; corrected the experiment to require identical keys and a 1e-12 relative tolerance.
+
+## Pass 35: isolate chart scales
+
+Detailed scale labels now receive only their numeric scale/unit/width, behind an equatable view boundary. They no longer capture the live history through the geometry closure. A focused 200-update host evaluated the original scale 200 times and the new scale zero times; an actual ceiling change still rebuilt it. Full plot update/layout improved 0.046 to 0.037 ms. Compact/detailed plots also compute availability once for the empty state and accessibility label; thumbnails remain free of that scan.

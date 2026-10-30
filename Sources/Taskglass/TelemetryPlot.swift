@@ -10,7 +10,7 @@ struct PlotLayer: Identifiable {
     var id: MetricSeries { series }
 }
 
-enum PlotUnit {
+enum PlotUnit: Equatable {
     case percent, rate, bytes, power, celsius, millisecondsPerSecond
     /// Axis labels: round values without trailing ".0", binary units for byte amounts and rates.
     func axis(_ value: Double) -> String {
@@ -113,17 +113,19 @@ struct TelemetryPlot: View {
             }
             .accessibilityHidden(true)
         case .compact:
+            let available = hasData
             ZStack(alignment: .topLeading) {
                 PlotGrid(divisions: 2).stroke(Palette.grid, lineWidth: Metrics.hairline)
                 PlotBaseline().stroke(Palette.baseline, lineWidth: Metrics.hairline)
                 startMarker
                 lines(lineWidth: 1.25).padding(.top, 1)
                 Text(unit.axis(ceiling)).font(.scale10).foregroundStyle(Palette.quiet).padding(.top, 3)
-                emptyState
+                emptyState(hasData: available)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityText)
+            .accessibilityLabel(accessibilityText(hasData: available))
         case .detailed:
+            let available = hasData
             VStack(spacing: 6) {
                 HStack(spacing: 0) {
                     ZStack {
@@ -132,14 +134,14 @@ struct TelemetryPlot: View {
                         PlotBaseline().stroke(Palette.baseline, lineWidth: Metrics.hairline)
                         startMarker
                         lines(lineWidth: 1.5).padding(.top, 1)
-                        emptyState
+                        emptyState(hasData: available)
                     }
-                    scaleGutter
+                    PlotScaleGutter(floor: floor, ceiling: ceiling, unit: unit, width: gutter).equatable()
                 }
                 TimeAxis(window: window, paused: paused).padding(.trailing, gutter)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityText)
+            .accessibilityLabel(accessibilityText(hasData: available))
         }
     }
 
@@ -155,7 +157,7 @@ struct TelemetryPlot: View {
 
     /// Two samples are needed before any rate exists, so an empty plot says which case applies.
     private var hasData: Bool { layers.contains { layer in points.contains { layer.series.value($0) != nil } } }
-    @ViewBuilder private var emptyState: some View {
+    @ViewBuilder private func emptyState(hasData: Bool) -> some View {
         if !hasData {
             Text(points.count < 2 ? "Collecting samples" : "Not reported")
                 .font(.caption11).foregroundStyle(Palette.quiet)
@@ -163,20 +165,27 @@ struct TelemetryPlot: View {
         }
     }
 
-    /// Right-hand scale: top, middle and bottom, each centred on its gridline.
-    private var scaleGutter: some View {
+    private func accessibilityText(hasData: Bool) -> String {
+        "\(label), last \(windowName(window)), scale \(unit.axis(floor)) to \(unit.axis(ceiling))" + (hasData ? "" : ", no data")
+    }
+}
+
+/// Axes depend only on their scale. Live history does not rebuild their text
+/// or retain samples through a GeometryReader closure.
+private struct PlotScaleGutter: View, Equatable {
+    let floor: Double
+    let ceiling: Double
+    let unit: PlotUnit
+    let width: CGFloat
+    var body: some View {
         GeometryReader { geometry in
             ForEach([1.0, 0.5, 0.0], id: \.self) { fraction in
                 Text(unit.axis(floor + (ceiling - floor) * fraction))
                     .font(.scale10).foregroundStyle(Palette.quiet).lineLimit(1)
-                    .frame(width: gutter - 8, alignment: .leading)
-                    .position(x: 8 + (gutter - 8) / 2, y: geometry.size.height * (1 - fraction))
+                    .frame(width: width - 8, alignment: .leading)
+                    .position(x: 8 + (width - 8) / 2, y: geometry.size.height * (1 - fraction))
             }
-        }.frame(width: gutter)
-    }
-
-    private var accessibilityText: String {
-        "\(label), last \(windowName(window)), scale \(unit.axis(floor)) to \(unit.axis(ceiling))" + (hasData ? "" : ", no data")
+        }.frame(width: width)
     }
 }
 
