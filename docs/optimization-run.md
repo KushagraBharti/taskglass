@@ -71,3 +71,7 @@ Continuous work is still underway. Next candidate: stop copying full process rec
 Process families now hold ordered indices into the shared sample. Single-process rows use a range and allocate no member array. Groups sort integers rather than full ProcessRow records. Family structs grow from 160 to 176 bytes, but each member index uses 8 bytes instead of another 168-byte record. Family equality compares only selected members; aggregation still follows the original sorted order, and coalition fallback titles preserve their original source-order choice.
 
 Frozen 2,000-process comparison against the previous implementation: CPU grouping 1.028 to 0.921 ms, memory 1.636 to 1.422, GPU 0.898 to 0.759, ANE 1.141 to 0.955, disk 1.467 to 1.210. Grouped and ungrouped outputs compare equal for all columns. Existing sampling/accounting/lifecycle checks and the release build passed. Live sampling timings varied with system load, so those are not used as before/after claims.
+
+## Pass 5: resolve sort keys before comparisons
+
+Added a typed process sort key, resolved once at arrangement/grouping entry. Preserved string entry points and their fallback behavior. All 13 process columns compare equal to the previous ordering in both directions. Frozen 2,000-row process sorting improved memory 2.432 to 1.907 ms, disk 2.089 to 1.865, write 1.567 to 1.290 and CPU 1.764 to 1.686. PID/name were essentially unchanged. Grouping improved another 7–32% depending on the ranking. Current source compiled in the release build.

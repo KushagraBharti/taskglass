@@ -105,7 +105,7 @@ import Observation
     func arrange() {
         // Read observable settings once, outside the per-row filter and O(n log n)
         // comparator. An unfiltered list also avoids a redundant full-array copy.
-        let filterScope = scope, query = search, key = sort, up = ascending
+        let filterScope = scope, query = search, key = ProcessSortKey(rawValue: sort) ?? .memory, up = ascending
         var arranged = resourceSample
         if filterScope != 0 || !query.isEmpty {
             let uid = getuid()

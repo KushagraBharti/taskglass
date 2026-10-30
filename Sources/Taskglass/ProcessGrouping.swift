@@ -46,15 +46,16 @@ struct ProcessFamily: Equatable {
         self.gpu = gpu; self.neuralMemory = neuralMemory; self.ane = ane
         self.cpu = cpu; self.memory = memory; self.read = read; self.write = write
     }
-    func value(_ key: String) -> Double? {
+    func value(_ key: String) -> Double? { value(ProcessSortKey(rawValue: key) ?? .cpu) }
+    func value(_ key: ProcessSortKey) -> Double? {
         switch key {
-        case "gpu": gpu
-        case "ane": ane
-        case "neural": neuralMemory.map { Double($0) }
-        case "memory": memory.map { Double($0) }
-        case "read": read
-        case "write": write
-        case "disk": read.flatMap { r in write.map { r + $0 } }
+        case .gpu: gpu
+        case .ane: ane
+        case .neural: neuralMemory.map { Double($0) }
+        case .memory: memory.map { Double($0) }
+        case .read: read
+        case .write: write
+        case .disk: read.flatMap { r in write.map { r + $0 } }
         default: cpu
         }
     }
@@ -74,7 +75,9 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
     var buckets: [String: Bucket] = [:]
     var individuals: [Int] = []
     individuals.reserveCapacity(rows.count)
-    let byANE = key == "ane"
+    let orderKey = ProcessSortKey(rawValue: key) ?? .memory
+    let valueKey = ProcessSortKey(rawValue: key) ?? .cpu
+    let byANE = orderKey == .ane
     for (index, row) in rows.enumerated() {
         let id: String
         let name: String
@@ -102,7 +105,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
     }
     for (id, bucket) in buckets {
         var order = bucket.members
-        if order.count > 1 { order.sort { processPrecedes(rows[$0], rows[$1], key: key, ascending: false) } }
+        if order.count > 1 { order.sort { processPrecedes(rows[$0], rows[$1], key: orderKey, ascending: false) } }
         let children = ProcessMembers(source: rows, order: order)
         var title = bucket.name
         if byANE && id.hasPrefix("coalition:") {
@@ -115,7 +118,7 @@ func processFamilies(_ rows: [ProcessRow], key: String, grouped: Bool) -> [Proce
         families.append(ProcessFamily(id: id, name: title, members: children, application: true))
     }
     families.sort {
-        let a = $0.value(key) ?? -1, b = $1.value(key) ?? -1
+        let a = $0.value(valueKey) ?? -1, b = $1.value(valueKey) ?? -1
         if a != b { return a > b }
         return $0.id < $1.id
     }
